@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, ChevronDown } from 'lucide-react';
+import { Loader2, ChevronDown, Copy, Download, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -83,6 +83,20 @@ type ContentDraft = {
   };
 };
 
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  real_estate: 'Real Estate',
+  hospitality: 'Hospitality',
+  saas: 'SaaS',
+  local_services: 'Local Services',
+};
+
+const INTENT_LABELS: Record<string, string> = {
+  commercial: 'Commercial',
+  informational: 'Informational',
+  navigational: 'Navigational',
+  transactional: 'Transactional',
+};
+
 export default function Page() {
   const [step, setStep] = useState<'input' | 'gate_a' | 'gate_b' | 'result'>('input');
   const [keyword, setKeyword] = useState('');
@@ -98,6 +112,83 @@ export default function Page() {
   const [selectedTemplateIndex, setSelectedTemplateIndex] = useState<number | null>(null);
 
   const [contentDraft, setContentDraft] = useState<ContentDraft | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
+
+  const BusinessContextBar = () => (
+    <div className="bg-muted/50 border rounded-lg px-4 py-3 mb-6">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+        <div>
+          <span className="font-medium text-foreground">Keyword:</span>{' '}
+          <span className="text-muted-foreground">{keyword}</span>
+        </div>
+        <div>
+          <span className="font-medium text-foreground">Business Type:</span>{' '}
+          <span className="text-muted-foreground">
+            {businessType ? BUSINESS_TYPE_LABELS[businessType] : 'Not specified'}
+          </span>
+        </div>
+        {intentAnalysis && (
+          <div>
+            <span className="font-medium text-foreground">Intent:</span>{' '}
+            <span className="text-muted-foreground">{INTENT_LABELS[intentAnalysis.query_classification]}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const generateMarkdown = () => {
+    if (!contentDraft) return '';
+
+    let markdown = `# ${contentDraft.h1}\n\n`;
+    markdown += `> ${contentDraft.meta_description}\n\n`;
+
+    contentDraft.sections.forEach((section) => {
+      const headingPrefix = section.heading_level === 'h2' ? '## ' : '### ';
+      markdown += `${headingPrefix}${section.heading_text}\n\n`;
+      markdown += `${section.content}\n\n`;
+    });
+
+    if (contentDraft.faqs.length > 0) {
+      markdown += `## Frequently Asked Questions\n\n`;
+      contentDraft.faqs.forEach((faq) => {
+        markdown += `### ${faq.question}\n\n`;
+        markdown += `${faq.answer}\n\n`;
+      });
+    }
+
+    markdown += `---\n\n`;
+    markdown += `**${contentDraft.cta.text}**\n`;
+
+    return markdown;
+  };
+
+  const handleCopyContent = async () => {
+    const markdown = generateMarkdown();
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 1500);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const handleDownloadContent = () => {
+    const markdown = generateMarkdown();
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${keyword?.replace(/\s+/g, '-') || 'seo-content'}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setDownloadSuccess(true);
+    setTimeout(() => setDownloadSuccess(false), 1500);
+  };
 
   const handleAnalyzeIntent = async () => {
     if (!keyword.trim()) {
@@ -365,6 +456,8 @@ export default function Page() {
               <p className="text-muted-foreground">Select a content structure for your approved opportunity.</p>
             </div>
 
+            <BusinessContextBar />
+
             <RadioGroup
               value={selectedTemplateIndex?.toString()}
               onValueChange={(value) => setSelectedTemplateIndex(Number(value))}
@@ -441,11 +534,87 @@ export default function Page() {
               approved both the opportunity and template structure.
             </div>
 
+            <BusinessContextBar />
+
             <Card>
               <CardHeader>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">H1</p>
-                  <CardTitle className="text-2xl">{contentDraft.h1}</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  Decision Log
+                  <span className="text-xs text-muted-foreground font-normal">(Human approved)</span>
+                </CardTitle>
+                <CardDescription>Your approved path through the decision engine</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-emerald-600 font-semibold">✓</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Gate A approved</p>
+                    <p className="text-sm text-muted-foreground">
+                      {intentAnalysis && selectedOpportunityIndex !== null
+                        ? intentAnalysis.opportunities[selectedOpportunityIndex]?.title ?? '—'
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-emerald-600 font-semibold">✓</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-foreground">Gate B approved</p>
+                    <p className="text-sm text-muted-foreground">
+                      {templateProposal && selectedTemplateIndex !== null
+                        ? templateProposal.templates[selectedTemplateIndex]?.name ?? '—'
+                        : '—'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1 flex-1">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">H1</p>
+                    <CardTitle className="text-2xl">{contentDraft.h1}</CardTitle>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyContent}
+                      title="Copy content to clipboard"
+                    >
+                      {copySuccess ? (
+                        <>
+                          <Check className="w-4 h-4 mr-1" />
+                          Copied ✓
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copy
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDownloadContent}
+                      title="Download as Markdown file"
+                    >
+                      {downloadSuccess ? (
+                        <>
+                          <Check className="w-4 h-4 mr-1" />
+                          Downloaded ✓
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 mr-1" />
+                          Download
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
