@@ -1,6 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { Loader2, ChevronDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { StepIndicator } from '@/components/step-indicator';
+import { ConfidenceBadge } from '@/components/confidence-badge';
 
 type Opportunity = {
   title: string;
@@ -210,12 +220,14 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <header className="mb-8 border-b pb-4">
-          <h1 className="text-2xl font-bold text-gray-900">SEO Decision Engine</h1>
-          <p className="text-sm text-gray-600 mt-1">AI suggests. Humans approve.</p>
+    <main className="min-h-screen bg-background">
+      <div className="max-w-5xl mx-auto px-6 py-12">
+        <header className="text-center mb-12">
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2">SEO Decision Engine</h1>
+          <p className="text-muted-foreground">AI suggests. Humans approve.</p>
         </header>
+
+        <StepIndicator currentStep={step} />
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">
@@ -224,250 +236,275 @@ export default function Page() {
         )}
 
         {step === 'input' && (
-          <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">Step 1: Intent Analysis</h2>
-
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Keyword or topic <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="e.g., best CRM software"
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-              disabled={loading}
-            />
-
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Location (optional)
-            </label>
-            <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g., United States, New York, etc."
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-              disabled={loading}
-            />
-
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Business Type (optional)
-            </label>
-            <select
-              value={businessType}
-              onChange={(e) => setBusinessType(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-              disabled={loading}
-            >
-              <option value="">Select business type</option>
-              <option value="real_estate">Real Estate</option>
-              <option value="hospitality">Hospitality</option>
-              <option value="saas">SaaS</option>
-              <option value="local_services">Local Services</option>
-            </select>
-
-            <button
-              onClick={handleAnalyzeIntent}
-              disabled={loading || !keyword.trim()}
-              className="px-6 py-2 bg-blue-600 text-white rounded font-medium disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700"
-            >
-              {loading ? 'AI analyzing intent (human approval required)...' : 'Analyze Intent'}
-            </button>
-          </div>
+          <Card className="max-w-xl mx-auto">
+            <CardHeader>
+              <CardTitle>Intent Analysis</CardTitle>
+              <CardDescription>
+                Enter your target keyword to analyze search intent and discover opportunities.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="keyword">Keyword *</Label>
+                <Input
+                  id="keyword"
+                  placeholder="e.g., best CRM software"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="location">Location (optional)</Label>
+                <Input
+                  id="location"
+                  placeholder="e.g., United States, New York, etc."
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="business-type">Business Type (optional)</Label>
+                <Select value={businessType} onValueChange={(value: any) => setBusinessType(value)} disabled={loading}>
+                  <SelectTrigger id="business-type" className="w-full">
+                    <SelectValue placeholder="Select business type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="real_estate">Real Estate</SelectItem>
+                    <SelectItem value="hospitality">Hospitality</SelectItem>
+                    <SelectItem value="saas">SaaS</SelectItem>
+                    <SelectItem value="local_services">Local Services</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                className="w-full"
+                onClick={handleAnalyzeIntent}
+                disabled={!keyword.trim() || loading}
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    AI analyzing intent (human approval required)…
+                  </>
+                ) : (
+                  'Analyze Intent'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {step === 'gate_a' && intentAnalysis && (
-          <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">Gate A: Approve Opportunity</h2>
-
-            <div className="mb-4 p-3 bg-gray-50 rounded">
-              <p className="text-sm text-gray-600">
-                <strong>Classification:</strong> {intentAnalysis.query_classification}
-              </p>
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h2 className="text-xl font-semibold text-foreground mb-2">Gate A: Approve Opportunity</h2>
+              <p className="text-muted-foreground">Review AI-suggested opportunities and select one to proceed.</p>
+              <div className="mt-4 p-3 bg-muted rounded-md inline-block">
+                <p className="text-sm text-muted-foreground">
+                  <strong>Classification:</strong> {intentAnalysis.query_classification}
+                </p>
+              </div>
             </div>
 
-            <p className="text-sm font-medium text-gray-700 mb-3">
-              Select exactly ONE opportunity to pursue:
-            </p>
-
-            <div className="space-y-3 mb-6">
-              {intentAnalysis.opportunities.map((opp, index) => (
-                <label
-                  key={index}
-                  className={`block border rounded p-4 cursor-pointer transition ${
-                    selectedOpportunityIndex === index
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-start">
-                    <input
-                      type="radio"
-                      name="opportunity"
-                      checked={selectedOpportunityIndex === index}
-                      onChange={() => setSelectedOpportunityIndex(index)}
-                      className="mt-1 mr-3"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900">{opp.title}</h3>
-                        <span
-                          className={`text-xs px-2 py-1 rounded font-medium ${
-                            opp.confidence === 'high'
-                              ? 'bg-green-100 text-green-800'
-                              : opp.confidence === 'medium'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {opp.confidence}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{opp.description}</p>
-                      <p className="text-xs text-gray-500 italic">
-                        <strong>Why this exists:</strong> {opp.rationale}
-                      </p>
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <button
-              onClick={handleApproveOpportunity}
-              disabled={loading || selectedOpportunityIndex === null}
-              className="px-6 py-2 bg-green-600 text-white rounded font-medium disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700"
+            <RadioGroup
+              value={selectedOpportunityIndex?.toString()}
+              onValueChange={(value) => setSelectedOpportunityIndex(Number(value))}
+              className="grid gap-4 md:grid-cols-2"
             >
-              {loading ? 'AI proposing templates (human approval required)...' : 'Approve Opportunity & Propose Templates'}
-            </button>
+              {intentAnalysis.opportunities.map((opportunity, index) => (
+                <Label key={index} htmlFor={`opportunity-${index}`} className="cursor-pointer">
+                  <Card
+                    className={`h-full transition-all ${
+                      selectedOpportunityIndex === index
+                        ? 'ring-2 ring-primary'
+                        : 'hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <RadioGroupItem value={index.toString()} id={`opportunity-${index}`} className="mt-1" />
+                          <CardTitle className="text-base font-medium leading-snug">{opportunity.title}</CardTitle>
+                        </div>
+                        <ConfidenceBadge confidence={opportunity.confidence} />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0 pl-10">
+                      <p className="text-sm text-muted-foreground mb-3">{opportunity.description}</p>
+                      <div className="text-sm">
+                        <span className="font-medium text-foreground">Why this exists: </span>
+                        <span className="text-muted-foreground">{opportunity.rationale}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Label>
+              ))}
+            </RadioGroup>
+
+            <div className="flex justify-center pt-4">
+              <Button size="lg" onClick={handleApproveOpportunity} disabled={selectedOpportunityIndex === null || loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    AI proposing templates (human approval required)…
+                  </>
+                ) : (
+                  'Approve Opportunity & Propose Templates'
+                )}
+              </Button>
+            </div>
           </div>
         )}
 
         {step === 'gate_b' && templateProposal && (
-          <div className="bg-white border rounded-lg p-6">
-            <h2 className="text-lg font-semibold mb-4">Gate B: Approve Template</h2>
-
-            <p className="text-sm font-medium text-gray-700 mb-3">
-              Select exactly ONE template structure:
-            </p>
-
-            <div className="space-y-4 mb-6">
-              {templateProposal.templates.map((template, index) => (
-                <label
-                  key={index}
-                  className={`block border rounded p-4 cursor-pointer transition ${
-                    selectedTemplateIndex === index
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-start">
-                    <input
-                      type="radio"
-                      name="template"
-                      checked={selectedTemplateIndex === index}
-                      onChange={() => setSelectedTemplateIndex(index)}
-                      className="mt-1 mr-3"
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 mb-2">{template.name}</h3>
-                      <p className="text-sm text-gray-600 mb-3">{template.rationale}</p>
-
-                      <div className="bg-gray-50 p-3 rounded mb-2">
-                        <p className="text-xs font-medium text-gray-700 mb-1">H1: {template.h1}</p>
-                        <p className="text-xs text-gray-600">
-                          <strong>Sections:</strong> {template.sections.length} | <strong>FAQs:</strong> {template.faqs.length}
-                        </p>
-                      </div>
-
-                      <details className="text-xs">
-                        <summary className="cursor-pointer text-blue-600 font-medium">
-                          View section outline
-                        </summary>
-                        <ul className="mt-2 ml-4 space-y-1 text-gray-600">
-                          {template.sections.map((section, i) => (
-                            <li key={i}>
-                              {section.heading_level === 'h2' ? '■' : '□'} {section.heading_text}
-                            </li>
-                          ))}
-                        </ul>
-                      </details>
-                    </div>
-                  </div>
-                </label>
-              ))}
+          <div className="space-y-6">
+            <div className="text-center mb-8">
+              <h2 className="text-xl font-semibold text-foreground mb-2">Gate B: Approve Template Structure</h2>
+              <p className="text-muted-foreground">Select a content structure for your approved opportunity.</p>
             </div>
 
-            <button
-              onClick={handleApproveTemplate}
-              disabled={loading || selectedTemplateIndex === null}
-              className="px-6 py-2 bg-green-600 text-white rounded font-medium disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700"
+            <RadioGroup
+              value={selectedTemplateIndex?.toString()}
+              onValueChange={(value) => setSelectedTemplateIndex(Number(value))}
+              className="grid gap-4 md:grid-cols-3"
             >
-              {loading ? 'AI generating content (human approval required)...' : 'Approve Template & Generate Content'}
-            </button>
+              {templateProposal.templates.map((template, index) => (
+                <Label key={index} htmlFor={`template-${index}`} className="cursor-pointer">
+                  <Card
+                    className={`h-full transition-all ${
+                      selectedTemplateIndex === index ? 'ring-2 ring-primary' : 'hover:border-muted-foreground/30'
+                    }`}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start gap-3">
+                        <RadioGroupItem value={index.toString()} id={`template-${index}`} className="mt-1" />
+                        <div>
+                          <CardTitle className="text-base font-medium">{template.name}</CardTitle>
+                          <CardDescription className="mt-1 text-sm">
+                            {template.sections.length} sections • {template.faqs.length} FAQs
+                          </CardDescription>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-0 pl-10 space-y-3">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">H1</p>
+                        <p className="text-sm text-foreground">{template.h1}</p>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium text-foreground">Rationale: </span>
+                        <span className="text-muted-foreground">{template.rationale}</span>
+                      </div>
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
+                          <ChevronDown className="w-4 h-4" />
+                          View section outline
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-2">
+                          <ul className="text-sm text-muted-foreground space-y-1">
+                            {template.sections.map((section, i) => (
+                              <li key={i} className="flex items-start gap-2">
+                                <span className="text-muted-foreground/60">{section.heading_level === 'h2' ? '■' : '□'}</span>
+                                {section.heading_text}
+                              </li>
+                            ))}
+                          </ul>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </CardContent>
+                  </Card>
+                </Label>
+              ))}
+            </RadioGroup>
+
+            <div className="flex justify-center pt-4">
+              <Button size="lg" onClick={handleApproveTemplate} disabled={selectedTemplateIndex === null || loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    AI generating content (human approval required)…
+                  </>
+                ) : (
+                  'Approve Template & Generate Content'
+                )}
+              </Button>
+            </div>
           </div>
         )}
 
         {step === 'result' && contentDraft && (
-          <div className="bg-white border rounded-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold">Final Content Draft</h2>
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 bg-gray-600 text-white rounded text-sm hover:bg-gray-700"
-              >
-                Start New Analysis
-              </button>
+          <div className="space-y-8">
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800">
+              <strong>✓ Generated after two human approval gates.</strong> This content was created only after you
+              approved both the opportunity and template structure.
             </div>
 
-            <p className="text-sm text-gray-500 mb-4">
-              Generated after two human approval gates.
-            </p>
+            <Card>
+              <CardHeader>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">H1</p>
+                  <CardTitle className="text-2xl">{contentDraft.h1}</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meta Description</p>
+                <p className="text-muted-foreground">{contentDraft.meta_description}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Word count: {contentDraft.metadata.word_count} | Model: {contentDraft.metadata.model}
+                </p>
+              </CardContent>
+            </Card>
 
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded">
-              <p className="text-sm text-blue-900">
-                <strong>Meta Description:</strong> {contentDraft.meta_description}
-              </p>
-              <p className="text-xs text-blue-700 mt-2">
-                Word count: {contentDraft.metadata.word_count} | Model: {contentDraft.metadata.model}
-              </p>
-            </div>
-
-            <article className="prose max-w-none">
-              <h1 className="text-3xl font-bold mb-6">{contentDraft.h1}</h1>
-
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-foreground">Content Sections</h3>
               {contentDraft.sections.map((section, index) => (
-                <div key={index} className="mb-6">
-                  {section.heading_level === 'h2' ? (
-                    <h2 className="text-2xl font-semibold mb-3">{section.heading_text}</h2>
-                  ) : (
-                    <h3 className="text-xl font-semibold mb-2">{section.heading_text}</h3>
-                  )}
-                  <p className="text-gray-700 whitespace-pre-line">{section.content}</p>
-                </div>
+                <Card key={index}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg">{section.heading_text}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line">{section.content}</p>
+                  </CardContent>
+                </Card>
               ))}
+            </div>
 
-              <div className="mt-8 pt-6 border-t">
-                <h2 className="text-2xl font-semibold mb-4">Frequently Asked Questions</h2>
-                <div className="space-y-4">
-                  {contentDraft.faqs.map((faq, index) => (
-                    <div key={index}>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">{faq.question}</h3>
-                      <p className="text-gray-700">{faq.answer}</p>
-                    </div>
-                  ))}
-                </div>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-foreground">Frequently Asked Questions</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                {contentDraft.faqs.map((faq, index) => (
+                  <Card key={index}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base font-medium">{faq.question}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">{faq.answer}</p>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
+            </div>
 
-              <div className="mt-6 p-4 bg-gray-100 rounded text-center">
-                <p className="font-semibold text-gray-900">{contentDraft.cta.text}</p>
-                <p className="text-xs text-gray-500 mt-1">CTA Position: {contentDraft.cta.position}</p>
-              </div>
-            </article>
+            <Card className="bg-primary text-primary-foreground">
+              <CardHeader>
+                <CardTitle className="text-xl">Call to Action</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-primary-foreground/90 mb-2">{contentDraft.cta.text}</p>
+                <p className="text-xs text-primary-foreground/70">CTA Position: {contentDraft.cta.position}</p>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-center pt-4">
+              <Button variant="outline" onClick={handleReset}>
+                Start New Analysis
+              </Button>
+            </div>
           </div>
         )}
       </div>
-    </div>
+    </main>
   );
 }
