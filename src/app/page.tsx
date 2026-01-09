@@ -83,6 +83,27 @@ type ContentDraft = {
   };
 };
 
+type OpportunityGuardResult = {
+  approved: boolean;
+  reasons: string[];
+  risk_flags: Array<'duplicate_risk' | 'generic' | 'mismatch_intent' | 'thin' | 'unsafe_claims'>;
+  suggested_fix: string;
+};
+
+type TemplateGuardResult = {
+  approved: boolean;
+  reasons: string[];
+  risk_flags: Array<'generic_structure' | 'mismatch_opportunity' | 'thin_content_risk' | 'duplicate_pattern' | 'overoptimized'>;
+  suggested_fix: string;
+};
+
+type ContentGuardResult = {
+  approved: boolean;
+  reasons: string[];
+  risk_flags: Array<'thin_content' | 'generic_language' | 'mismatch_intent' | 'overoptimized' | 'hallucination_risk' | 'eeat_weak' | 'duplicate_angle'>;
+  suggested_fix: string;
+};
+
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
   real_estate: 'Real Estate',
   hospitality: 'Hospitality',
@@ -107,11 +128,14 @@ export default function Page() {
 
   const [intentAnalysis, setIntentAnalysis] = useState<IntentAnalysis | null>(null);
   const [selectedOpportunityIndex, setSelectedOpportunityIndex] = useState<number | null>(null);
+  const [guardResult, setGuardResult] = useState<OpportunityGuardResult | null>(null);
 
   const [templateProposal, setTemplateProposal] = useState<TemplateProposal | null>(null);
   const [selectedTemplateIndex, setSelectedTemplateIndex] = useState<number | null>(null);
+  const [guardTemplateResult, setGuardTemplateResult] = useState<TemplateGuardResult | null>(null);
 
   const [contentDraft, setContentDraft] = useState<ContentDraft | null>(null);
+  const [guardContentResult, setGuardContentResult] = useState<ContentGuardResult | null>(null);
   const [copySuccess, setCopySuccess] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
@@ -232,8 +256,42 @@ export default function Page() {
 
     setLoading(true);
     setError(null);
+    setGuardResult(null);
 
     try {
+      const selectedOpportunity = intentAnalysis.opportunities[selectedOpportunityIndex];
+
+      // LAYER 2: Validate selected opportunity before proceeding
+      const validationRes = await fetch('/api/approve-opportunity', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword.trim(),
+          location: location.trim() || undefined,
+          business_type: businessType || undefined,
+          intent_analysis: intentAnalysis,
+          selected_opportunity_index: selectedOpportunityIndex,
+          selected_opportunity: selectedOpportunity,
+        }),
+      });
+
+      if (!validationRes.ok) {
+        const errorData = await validationRes.json().catch(() => ({}));
+        setError(errorData.error || 'Opportunity validation request failed');
+        setLoading(false);
+        return;
+      }
+
+      const validationData: OpportunityGuardResult = await validationRes.json();
+      setGuardResult(validationData);
+
+      // If validation rejected, stop here (guardResult will display feedback)
+      if (!validationData.approved) {
+        setLoading(false);
+        return;
+      }
+
+      // Validation passed - proceed to template generation
       const res = await fetch('/api/propose-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -241,13 +299,16 @@ export default function Page() {
           keyword: keyword.trim(),
           location: location.trim() || undefined,
           business_type: businessType || undefined,
-          selected_opportunity: intentAnalysis.opportunities[selectedOpportunityIndex],
+          selected_opportunity: selectedOpportunity,
           selected_opportunity_index: selectedOpportunityIndex,
         }),
       });
 
       if (!res.ok) {
-        throw new Error('Template proposal failed');
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.error || 'Template proposal failed');
+        setLoading(false);
+        return;
       }
 
       const data: TemplateProposal = await res.json();
@@ -262,15 +323,55 @@ export default function Page() {
   };
 
   const handleApproveTemplate = async () => {
-    if (selectedTemplateIndex === null || !templateProposal) {
+    if (selectedTemplateIndex === null || !templateProposal || selectedOpportunityIndex === null || !intentAnalysis) {
       setError('You must select a template');
       return;
     }
 
     setLoading(true);
     setError(null);
+    setGuardTemplateResult(null);
+    setGuardContentResult(null); // Clear content validation before regenerating
 
     try {
+      const selectedTemplate = templateProposal.templates[selectedTemplateIndex];
+      const selectedOpportunity = intentAnalysis.opportunities[selectedOpportunityIndex];
+
+      // LAYER 3: Validate template structure before content generation
+      const validationRes = await fetch('/api/approve-template', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword.trim(),
+          location: location.trim() || undefined,
+          business_type: businessType || undefined,
+          opportunity: selectedOpportunity,
+          selected_template_index: selectedTemplateIndex,
+          template: {
+            name: selectedTemplate.name,
+            description: selectedTemplate.rationale,
+            structure: selectedTemplate.sections.map(s => s.heading_text),
+          },
+        }),
+      });
+
+      if (!validationRes.ok) {
+        const errorData = await validationRes.json().catch(() => ({}));
+        setError(errorData.error || 'Template validation request failed');
+        setLoading(false);
+        return;
+      }
+
+      const validationData: TemplateGuardResult = await validationRes.json();
+      setGuardTemplateResult(validationData);
+
+      // If validation rejected, stop here (guardTemplateResult will display feedback)
+      if (!validationData.approved) {
+        setLoading(false);
+        return;
+      }
+
+      // Validation passed - proceed to content generation
       const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -278,17 +379,46 @@ export default function Page() {
           keyword: keyword.trim(),
           location: location.trim() || undefined,
           business_type: businessType || undefined,
-          selected_template: templateProposal.templates[selectedTemplateIndex],
+          selected_template: selectedTemplate,
           selected_template_index: selectedTemplateIndex,
         }),
       });
 
       if (!res.ok) {
-        throw new Error('Content generation failed');
+        const errorData = await res.json().catch(() => ({}));
+        setError(errorData.error || 'Content generation failed');
+        setLoading(false);
+        return;
       }
 
       const data: ContentDraft = await res.json();
       setContentDraft(data);
+
+      // LAYER 4: Validate generated content quality (SOFT GATE)
+      const contentValidationRes = await fetch('/api/approve-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword.trim(),
+          location: location.trim() || undefined,
+          business_type: businessType || undefined,
+          opportunity: selectedOpportunity,
+          template: selectedTemplate,
+          content: data,
+        }),
+      });
+
+      if (!contentValidationRes.ok) {
+        const errorData = await contentValidationRes.json().catch(() => ({}));
+        setError(errorData.error || 'Content validation request failed');
+        setLoading(false);
+        return;
+      }
+
+      const contentValidationData: ContentGuardResult = await contentValidationRes.json();
+      setGuardContentResult(contentValidationData);
+
+      // Always move to result step (soft gate - content is visible regardless)
       setStep('result');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -304,9 +434,12 @@ export default function Page() {
     setBusinessType('');
     setIntentAnalysis(null);
     setSelectedOpportunityIndex(null);
+    setGuardResult(null);
     setTemplateProposal(null);
     setSelectedTemplateIndex(null);
+    setGuardTemplateResult(null);
     setContentDraft(null);
+    setGuardContentResult(null);
     setError(null);
   };
 
@@ -401,7 +534,11 @@ export default function Page() {
 
             <RadioGroup
               value={selectedOpportunityIndex?.toString()}
-              onValueChange={(value) => setSelectedOpportunityIndex(Number(value))}
+              onValueChange={(value) => {
+                setSelectedOpportunityIndex(Number(value));
+                setGuardResult(null); // Clear previous validation when selection changes
+                setGuardContentResult(null); // Clear content validation (prevents stale state)
+              }}
               className="grid gap-4 md:grid-cols-2"
             >
               {intentAnalysis.opportunities.map((opportunity, index) => (
@@ -434,12 +571,60 @@ export default function Page() {
               ))}
             </RadioGroup>
 
+            {guardResult && !guardResult.approved && (
+              <Card className="border-red-200 bg-red-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-red-900 flex items-center gap-2">
+                    <span className="text-xl">⚠️</span>
+                    Validation Failed
+                  </CardTitle>
+                  <CardDescription className="text-red-700">
+                    The selected opportunity did not pass quality validation. Please select a different opportunity or review the feedback below.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-red-900 mb-2">Reasons:</p>
+                    <ul className="space-y-1">
+                      {guardResult.reasons.map((reason, i) => (
+                        <li key={i} className="text-sm text-red-800 flex items-start gap-2">
+                          <span className="text-red-600 mt-0.5">•</span>
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  {guardResult.risk_flags.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-red-900 mb-2">Risk Flags:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {guardResult.risk_flags.map((flag, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-200 text-red-900"
+                          >
+                            {flag.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {guardResult.suggested_fix && (
+                    <div>
+                      <p className="text-sm font-medium text-red-900 mb-1">Suggested Fix:</p>
+                      <p className="text-sm text-red-800 bg-red-100 rounded px-3 py-2">{guardResult.suggested_fix}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <div className="flex justify-center pt-4">
               <Button size="lg" onClick={handleApproveOpportunity} disabled={selectedOpportunityIndex === null || loading}>
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    AI proposing templates (human approval required)…
+                    Validating opportunity…
                   </>
                 ) : (
                   'Approve Opportunity & Propose Templates'
@@ -460,7 +645,11 @@ export default function Page() {
 
             <RadioGroup
               value={selectedTemplateIndex?.toString()}
-              onValueChange={(value) => setSelectedTemplateIndex(Number(value))}
+              onValueChange={(value) => {
+                setSelectedTemplateIndex(Number(value));
+                setGuardTemplateResult(null); // Clear previous validation when selection changes
+                setGuardContentResult(null); // Clear content validation (prevents stale state)
+              }}
               className="grid gap-4 md:grid-cols-3"
             >
               {templateProposal.templates.map((template, index) => (
@@ -512,12 +701,60 @@ export default function Page() {
               ))}
             </RadioGroup>
 
+            {guardTemplateResult && !guardTemplateResult.approved && (
+              <Card className="border-red-200 bg-red-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-red-900 flex items-center gap-2">
+                    <span className="text-xl">⚠️</span>
+                    Validation Failed
+                  </CardTitle>
+                  <CardDescription className="text-red-700">
+                    The selected template structure did not pass quality validation. Please select a different template or review the feedback below.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-red-900 mb-2">Reasons:</p>
+                    <ul className="space-y-1">
+                      {guardTemplateResult.reasons.map((reason, i) => (
+                        <li key={i} className="text-sm text-red-800 flex items-start gap-2">
+                          <span className="text-red-600 mt-0.5">•</span>
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  {guardTemplateResult.risk_flags.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-red-900 mb-2">Risk Flags:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {guardTemplateResult.risk_flags.map((flag, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-200 text-red-900"
+                          >
+                            {flag.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {guardTemplateResult.suggested_fix && (
+                    <div>
+                      <p className="text-sm font-medium text-red-900 mb-1">Suggested Fix:</p>
+                      <p className="text-sm text-red-800 bg-red-100 rounded px-3 py-2">{guardTemplateResult.suggested_fix}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <div className="flex justify-center pt-4">
               <Button size="lg" onClick={handleApproveTemplate} disabled={selectedTemplateIndex === null || loading}>
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    AI generating content (human approval required)…
+                    Validating template structure…
                   </>
                 ) : (
                   'Approve Template & Generate Content'
@@ -533,6 +770,60 @@ export default function Page() {
               <strong>✓ Generated after two human approval gates.</strong> This content was created only after you
               approved both the opportunity and template structure.
             </div>
+
+            {guardContentResult && !guardContentResult.approved && (
+              <Card className="border-yellow-200 bg-yellow-50">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-yellow-900 flex items-center gap-2">
+                    <span className="text-xl">⚠️</span>
+                    Content needs revision
+                  </CardTitle>
+                  <CardDescription className="text-yellow-700">
+                    The generated content did not pass quality validation. Review the feedback below and regenerate or manually improve the content before exporting.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-yellow-900 mb-2">Reasons:</p>
+                    <ul className="space-y-1">
+                      {guardContentResult.reasons.map((reason, i) => (
+                        <li key={i} className="text-sm text-yellow-800 flex items-start gap-2">
+                          <span className="text-yellow-600 mt-0.5">•</span>
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  {guardContentResult.risk_flags.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-yellow-900 mb-2">Risk Flags:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {guardContentResult.risk_flags.map((flag, i) => (
+                          <span
+                            key={i}
+                            className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-yellow-200 text-yellow-900"
+                          >
+                            {flag.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {guardContentResult.suggested_fix && (
+                    <div>
+                      <p className="text-sm font-medium text-yellow-900 mb-1">Suggested Fix:</p>
+                      <p className="text-sm text-yellow-800 bg-yellow-100 rounded px-3 py-2">{guardContentResult.suggested_fix}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {guardContentResult && guardContentResult.approved && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800">
+                <strong>✓ Content approved.</strong> This content has passed quality validation and is ready for export.
+              </div>
+            )}
 
             <BusinessContextBar />
 
@@ -582,7 +873,8 @@ export default function Page() {
                       variant="outline"
                       size="sm"
                       onClick={handleCopyContent}
-                      title="Copy content to clipboard"
+                      disabled={!guardContentResult?.approved}
+                      title={guardContentResult?.approved ? "Copy content to clipboard" : "Fix content issues before exporting"}
                     >
                       {copySuccess ? (
                         <>
@@ -600,7 +892,8 @@ export default function Page() {
                       variant="outline"
                       size="sm"
                       onClick={handleDownloadContent}
-                      title="Download as Markdown file"
+                      disabled={!guardContentResult?.approved}
+                      title={guardContentResult?.approved ? "Download as Markdown file" : "Fix content issues before exporting"}
                     >
                       {downloadSuccess ? (
                         <>

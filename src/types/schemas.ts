@@ -163,3 +163,102 @@ export const ApprovalRecordSchema = z.object({
 });
 
 export type ApprovalRecord = z.infer<typeof ApprovalRecordSchema>;
+
+// ============================================
+// LAYER 2: OPPORTUNITY GUARD (QA / VALIDATION)
+// ============================================
+
+export const OpportunityGuardInputSchema = z.object({
+  keyword: z.string().trim().min(1),
+  location: z.string().optional(),
+  business_type: z.enum(['real_estate', 'hospitality', 'saas', 'local_services']).optional(),
+  intent_analysis: IntentAnalysisSchema,
+  selected_opportunity_index: z.number().int().min(0),
+  selected_opportunity: OpportunitySchema,
+});
+
+export type OpportunityGuardInput = z.infer<typeof OpportunityGuardInputSchema>;
+
+export const OpportunityGuardOutputSchema = z.object({
+  approved: z.boolean(),
+  reasons: z.array(z.string()).min(1, 'Must provide at least one reason'),
+  risk_flags: z.array(z.enum(['duplicate_risk', 'generic', 'mismatch_intent', 'thin', 'unsafe_claims'])),
+  suggested_fix: z.string(),
+});
+
+export type OpportunityGuardOutput = z.infer<typeof OpportunityGuardOutputSchema>;
+
+// ============================================
+// LAYER 3: TEMPLATE GUARD (STRUCTURE / FIT)
+// ============================================
+
+export const TemplateGuardInputSchema = z.object({
+  keyword: z.string().min(1),
+  location: z.string().optional(),
+  business_type: z.string().optional(),
+  opportunity: OpportunitySchema,
+  selected_template_index: z.number().int().min(0),
+  template: z.object({
+    name: z.string(),
+    description: z.string(),
+    structure: z.array(z.string()),
+  }),
+});
+
+export type TemplateGuardInput = z.infer<typeof TemplateGuardInputSchema>;
+
+export const TemplateGuardOutputSchema = z.object({
+  approved: z.boolean(),
+  reasons: z.array(z.string()),
+  risk_flags: z.array(
+    z.enum([
+      'generic_structure',
+      'mismatch_opportunity',
+      'thin_content_risk',
+      'duplicate_pattern',
+      'overoptimized',
+    ])
+  ),
+  suggested_fix: z.string(),
+});
+
+export type TemplateGuardOutput = z.infer<typeof TemplateGuardOutputSchema>;
+
+// ============================================
+// LAYER 4: CONTENT GUARD (QUALITY / TRUST)
+// ============================================
+
+export const ContentGuardInputSchema = z.object({
+  keyword: z.string().min(1),
+  location: z.string().optional(),
+  business_type: z.string().optional(),
+
+  opportunity: OpportunitySchema,
+  template: TemplateStructureSchema,
+
+  content: ContentDraftSchema,
+});
+
+export type ContentGuardInput = z.infer<typeof ContentGuardInputSchema>;
+
+export const ContentGuardOutputSchema = z.object({
+  approved: z.boolean(),
+
+  reasons: z.array(z.string()).min(1, 'Must provide at least one reason'),
+
+  risk_flags: z.array(
+    z.enum([
+      'thin_content',
+      'generic_language',
+      'mismatch_intent',
+      'overoptimized',
+      'hallucination_risk',
+      'eeat_weak',
+      'duplicate_angle',
+    ])
+  ),
+
+  suggested_fix: z.string(),
+});
+
+export type ContentGuardOutput = z.infer<typeof ContentGuardOutputSchema>;
