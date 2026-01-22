@@ -142,10 +142,10 @@ export const RequestRecordSchema = z.object({
   step: z.enum(['intent_analysis', 'template_proposal', 'content_generation']),
   model_used: z.string(),
   prompt_version: z.string(),
-  input_data: z.record(z.any()),
-  output_data: z.record(z.any()),
+  input_data: z.record(z.string(), z.any()),
+  output_data: z.record(z.string(), z.any()),
   validation_passed: z.boolean(),
-  validation_errors: z.record(z.any()).nullable(),
+  validation_errors: z.record(z.string(), z.any()).nullable(),
 });
 
 export type RequestRecord = z.infer<typeof RequestRecordSchema>;
@@ -159,7 +159,7 @@ export const ApprovalRecordSchema = z.object({
   approved: z.boolean(),
   selected_option_index: z.number().int().min(0).nullable(),
   rejection_reason: z.string().nullable(),
-  decision_metadata: z.record(z.any()).nullable(),
+  decision_metadata: z.record(z.string(), z.any()).nullable(),
 });
 
 export type ApprovalRecord = z.infer<typeof ApprovalRecordSchema>;

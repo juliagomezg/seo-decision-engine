@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SEO Decision Engine
 
-## Getting Started
+Decision-first SEO content engine with human-in-the-loop approval gates.
 
-First, run the development server:
+## Overview
+SEO Decision Engine explores a safer, more intentional way of using LLMs for SEO workflows.
 
+Instead of auto-generating content end-to-end, the system enforces **human approval at every critical decision point**, reducing hallucinations, thin content, and brand risk.
+
+This project prioritizes **decision quality, validation, and production safety** over raw content generation.
+
+## Core Idea
+**AI proposes. Humans decide.**
+
+Every step in the workflow is gated, validated, and explicitly approved before moving forward.
+
+## Workflow
+Intent → Opportunity → Template → Content
+
+Each gate is independently validated using strict schemas and quality checks.
+
+## Key Features
+- LLM-powered intent classification
+- Human approval of content opportunities (Gate A)
+- Template structure validation (Gate B)
+- Content quality and E-E-A-T guardrails
+- Strict runtime schema validation with Zod
+- Safe handling of malformed LLM responses
+- Explicit HTTP error semantics for frontend reliability
+
+## Architecture Principles
+- Decision-first, not content-first
+- Human-in-the-loop by design
+- Explicit validation at every boundary
+- Production-safe error handling
+- No build-time dependency on environment variables
+- Cost-aware and deterministic LLM usage
+
+## Tech Stack
+- Next.js (App Router)
+- TypeScript
+- Zod v4
+- Groq LLM API
+- Server-side API routes
+- Schema-driven contracts
+
+## Production Notes
+- API routes are hardened against invalid LLM output
+- LLM clients are lazily initialized to avoid build-time crashes
+- Runtime failures return meaningful HTTP status codes
+- Some endpoints intentionally return mock data for MVP stages
+
+## Local Development
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Note: LLM-backed endpoints require GROQ_API_KEY at runtime.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Technical Documentation
+For a deeper technical overview, architecture details, and development roadmap,
+see HANDOFF.md.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Status
+This project is under active iteration and is intentionally focused on
+architecture, safety, and decision quality rather than content volume.
