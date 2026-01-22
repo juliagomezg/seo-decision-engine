@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { KeywordInputSchema, IntentAnalysisSchema } from '@/types/schemas';
+import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
 
-if (!process.env.GROQ_API_KEY) {
-  throw new Error('GROQ_API_KEY is not set');
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
+  return new Groq({ apiKey });
 }
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
     // 1. Validate input
-    const { keyword, location, business_type } =
-      KeywordInputSchema.parse(body);
+    const { keyword, location, business_type } = KeywordInputSchema.parse(body);
 
     // 2. Prompt
     const prompt =
@@ -46,7 +44,8 @@ export async function POST(req: NextRequest) {
 }
 `;
 
-    // 3. Call Groq
+    // 3. Call Groq (lazy client)
+    const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
       model: 'mixtral-8x7b-32768',
       messages: [{ role: 'user', content: prompt }],
@@ -56,16 +55,37 @@ export async function POST(req: NextRequest) {
       response_format: { type: 'json_object' },
     });
 
-    const raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    let raw: unknown;
+    try {
+      raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    } catch {
+      return NextResponse.json(
+        { error: 'LLM returned invalid JSON' },
+        { status: 502 }
+      );
+    }
 
     // 4. Validate output
     const validated = IntentAnalysisSchema.parse(raw);
 
     return NextResponse.json(validated);
   } catch (error) {
+    if (error instanceof ZodError) {
+      // This covers invalid request payload (KeywordInputSchema)
+      return NextResponse.json(
+        { error: 'Validation failed', details: error.issues },
+        { status: 400 }
+      );
+    }
+
+    const msg = String(error);
+    const isMissingKey = msg.includes('GROQ_API_KEY is not set');
+
     return NextResponse.json(
-      { error: 'Invalid request', details: String(error) },
-      { status: 400 }
+      isMissingKey
+        ? { error: 'Server misconfigured', code: 'MISSING_GROQ_API_KEY' }
+        : { error: 'Internal error', code: 'INTERNAL_ERROR' },
+      { status: 500 }
     );
   }
 }

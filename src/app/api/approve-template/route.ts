@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { TemplateGuardInputSchema, TemplateGuardOutputSchema } from '@/types/schemas';
+import {
+  TemplateGuardInputSchema,
+  TemplateGuardOutputSchema,
+} from '@/types/schemas';
 import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
 
-if (!process.env.GROQ_API_KEY) {
-  throw new Error('GROQ_API_KEY is not set');
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
+  return new Groq({ apiKey });
 }
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       location,
       business_type,
       opportunity,
-      selected_template_index,
+      selected_template_index, // intentionally unused but validated
       template,
     } = TemplateGuardInputSchema.parse(body);
 
@@ -101,7 +102,8 @@ OUTPUT FORMAT (JSON ONLY):
 
 Validate the selected template structure now. Return JSON only, no explanations.`;
 
-    // 3. Call Groq with validation-specific settings
+    // 3. Call Groq (lazy client)
+    const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
       model: 'mixtral-8x7b-32768',
       messages: [{ role: 'user', content: prompt }],
@@ -111,7 +113,15 @@ Validate the selected template structure now. Return JSON only, no explanations.
       response_format: { type: 'json_object' },
     });
 
-    const raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    let raw;
+    try {
+      raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    } catch {
+      return NextResponse.json(
+        { error: 'LLM returned invalid JSON' },
+        { status: 502 }
+      );
+    }
 
     // 4. Validate output
     const validated = TemplateGuardOutputSchema.parse(raw);
@@ -122,18 +132,20 @@ Validate the selected template structure now. Return JSON only, no explanations.
       return NextResponse.json(
         {
           error: 'Validation failed',
-          details: error.errors,
+          details: error.issues,
         },
         { status: 400 }
       );
     }
 
+    const msg = String(error);
+    const isMissingKey = msg.includes('GROQ_API_KEY is not set');
+
     return NextResponse.json(
-      {
-        error: 'Internal error',
-        details: String(error),
-      },
-      { status: 400 }
+      isMissingKey
+        ? { error: 'Server misconfigured', code: 'MISSING_GROQ_API_KEY' }
+        : { error: 'Internal error', code: 'INTERNAL_ERROR' },
+      { status: 500 }
     );
   }
 }

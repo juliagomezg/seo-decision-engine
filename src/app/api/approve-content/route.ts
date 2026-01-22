@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ContentGuardInputSchema, ContentGuardOutputSchema } from '@/types/schemas';
+import {
+  ContentGuardInputSchema,
+  ContentGuardOutputSchema,
+} from '@/types/schemas';
 import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
+
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
+  return new Groq({ apiKey });
+}
 
 export async function POST(req: NextRequest) {
   try {
     // 1. Check API key inside handler (don't break build)
-    if (!process.env.GROQ_API_KEY) {
+    let groq: Groq;
+    try {
+      groq = getGroqClient();
+    } catch {
       return NextResponse.json(
-        { error: 'Server misconfigured: GROQ_API_KEY missing' },
+        { error: 'Server misconfigured', code: 'MISSING_GROQ_API_KEY' },
         { status: 500 }
       );
     }
-
-    const groq = new Groq({
-      apiKey: process.env.GROQ_API_KEY,
-    });
 
     const body = await req.json();
 
@@ -28,6 +36,9 @@ export async function POST(req: NextRequest) {
       template,
       content,
     } = ContentGuardInputSchema.parse(body);
+
+    // BUGFIX: metadata can be missing → avoid runtime crash
+    const wordCount = content.metadata?.word_count ?? 0;
 
     // 3. Construct validation prompt
     const prompt = `You are a senior editorial director and SEO quality auditor. Your role is to validate that AI-generated content meets publication standards for quality, trust, depth, and user value. You protect brand reputation by rejecting content with hallucinations, thin substance, or weak E-E-A-T signals.
@@ -47,22 +58,30 @@ Rationale: ${opportunity.rationale}
 APPROVED TEMPLATE (Gate B passed):
 Template Name: ${template.name}
 H1: ${template.h1}
-Sections: ${template.sections.map(s => s.heading_text).join(' | ')}
+Sections: ${template.sections.map((s) => s.heading_text).join(' | ')}
 Rationale: ${template.rationale}
 
 GENERATED CONTENT TO VALIDATE:
 Title: ${content.title}
 H1: ${content.h1}
 Meta Description: ${content.meta_description}
-Word Count: ${content.metadata.word_count}
+Word Count: ${wordCount}
 
 Sections:
-${content.sections.map((s, i) => `${i + 1}. ${s.heading_text} (${s.heading_level})
-   Content preview: ${s.content.substring(0, 200)}...`).join('\n\n')}
+${content.sections
+        .map(
+          (s, i) => `${i + 1}. ${s.heading_text} (${s.heading_level})
+   Content preview: ${s.content.substring(0, 200)}...`
+        )
+        .join('\n\n')}
 
 FAQs:
-${content.faqs.map((f, i) => `${i + 1}. ${f.question}
-   Answer: ${f.answer.substring(0, 150)}...`).join('\n\n')}
+${content.faqs
+        .map(
+          (f, i) => `${i + 1}. ${f.question}
+   Answer: ${f.answer.substring(0, 150)}...`
+        )
+        .join('\n\n')}
 
 CTA: ${content.cta.text}
 
@@ -77,7 +96,7 @@ VALIDATION CRITERIA:
 2. CONTENT DEPTH & SUBSTANCE:
    - Is the content genuinely informative or surface-level?
    - Are sections substantive or padded with filler?
-   - Is the word count (${content.metadata.word_count}) justified by actual value?
+   - Is the word count (${wordCount}) justified by actual value?
    - Does each section provide specific, actionable information?
    - Are examples, details, or data included (not just generic statements)?
 
@@ -139,7 +158,15 @@ Validate the generated content now. Return JSON only, no explanations.`;
       response_format: { type: 'json_object' },
     });
 
-    const raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    let raw: unknown;
+    try {
+      raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    } catch {
+      return NextResponse.json(
+        { error: 'LLM returned invalid JSON' },
+        { status: 502 }
+      );
+    }
 
     // 5. Validate output
     const validated = ContentGuardOutputSchema.parse(raw);
@@ -150,16 +177,17 @@ Validate the generated content now. Return JSON only, no explanations.`;
       return NextResponse.json(
         {
           error: 'Validation failed',
-          details: error.errors,
+          details: error.issues,
         },
         { status: 400 }
       );
     }
 
+    // Minimal: avoid leaking internal error details
     return NextResponse.json(
       {
         error: 'Internal error',
-        details: String(error),
+        code: 'INTERNAL_ERROR',
       },
       { status: 500 }
     );

@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OpportunityGuardInputSchema, OpportunityGuardOutputSchema } from '@/types/schemas';
+import {
+  OpportunityGuardInputSchema,
+  OpportunityGuardOutputSchema,
+} from '@/types/schemas';
 import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
 
-if (!process.env.GROQ_API_KEY) {
-  throw new Error('GROQ_API_KEY is not set');
+function getGroqClient() {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
+  return new Groq({ apiKey });
 }
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,7 +44,7 @@ Business Type: ${business_type ?? 'unspecified'}
 Detected Intent: ${intent_analysis.query_classification}
 
 Intent Signals from Opportunities:
-${intent_analysis.opportunities.map(o => `- ${o.title}`).join('\n')}
+${intent_analysis.opportunities.map((o) => `- ${o.title}`).join('\n')}
 
 SELECTED OPPORTUNITY TO VALIDATE:
 Title: ${selected_opportunity.title}
@@ -52,7 +53,9 @@ Rationale: ${selected_opportunity.rationale}
 Confidence: ${selected_opportunity.confidence}
 
 OTHER OPPORTUNITIES (check for semantic duplication):
-${siblingOpportunities.map((opp, i) => `${i + 1}. ${opp.title}\n   ${opp.description}`).join('\n\n')}
+${siblingOpportunities
+        .map((opp, i) => `${i + 1}. ${opp.title}\n   ${opp.description}`)
+        .join('\n\n')}
 
 VALIDATION CRITERIA:
 
@@ -103,7 +106,8 @@ OUTPUT FORMAT (JSON ONLY):
 
 Validate the selected opportunity now. Return JSON only, no explanations.`;
 
-    // 4. Call Groq with validation-specific settings
+    // 4. Call Groq with validation-specific settings (lazy client)
+    const groq = getGroqClient();
     const completion = await groq.chat.completions.create({
       model: 'mixtral-8x7b-32768',
       messages: [{ role: 'user', content: prompt }],
@@ -113,7 +117,15 @@ Validate the selected opportunity now. Return JSON only, no explanations.`;
       response_format: { type: 'json_object' },
     });
 
-    const raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    let raw: unknown;
+    try {
+      raw = JSON.parse(completion.choices[0].message.content ?? '{}');
+    } catch {
+      return NextResponse.json(
+        { error: 'LLM returned invalid JSON' },
+        { status: 502 }
+      );
+    }
 
     // 5. Validate output
     const validated = OpportunityGuardOutputSchema.parse(raw);
@@ -124,18 +136,20 @@ Validate the selected opportunity now. Return JSON only, no explanations.`;
       return NextResponse.json(
         {
           error: 'Validation failed',
-          details: error.errors,
+          details: error.issues,
         },
         { status: 400 }
       );
     }
 
+    const msg = String(error);
+    const isMissingKey = msg.includes('GROQ_API_KEY is not set');
+
     return NextResponse.json(
-      {
-        error: 'Internal error',
-        details: String(error),
-      },
-      { status: 400 }
+      isMissingKey
+        ? { error: 'Server misconfigured', code: 'MISSING_GROQ_API_KEY' }
+        : { error: 'Internal error', code: 'INTERNAL_ERROR' },
+      { status: 500 }
     );
   }
 }

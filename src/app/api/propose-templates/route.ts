@@ -6,13 +6,13 @@ export async function POST(_req: NextRequest) {
   try {
     // Validate mock output against schema
     const validated = TemplateProposalSchema.parse(templatesMock);
-
     return NextResponse.json(validated);
-
-  } catch (error) {
+  } catch {
+    // Minimal: don't leak internals; mock/schema mismatch is server-side
     return NextResponse.json(
-      { error: 'Template proposal failed', details: String(error) },
-      { status: 400 }
+      { error: 'Template proposal failed', code: 'TEMPLATES_MOCK_INVALID' },
+      { status: 500 }
     );
   }
 }
+
