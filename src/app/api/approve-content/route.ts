@@ -5,6 +5,8 @@ import {
 } from '@/types/schemas';
 import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { sanitizeKeyword, sanitizeLocation } from '@/lib/sanitize';
 
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY;
@@ -16,6 +18,14 @@ export async function POST(req: NextRequest) {
   const endpoint = '[approve-content]';
 
   try {
+    // P1: Rate limit early to protect Groq spend
+    const ip = getClientIp(req.headers);
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Too many requests', code: 'RATE_LIMITED' },
+        { status: 429 }
+      );
+    }
     // 1. Check API key inside handler (don't break build)
     let groq: Groq;
     try {
@@ -45,12 +55,16 @@ export async function POST(req: NextRequest) {
     // BUGFIX: metadata can be missing → avoid runtime crash
     const wordCount = content.metadata?.word_count ?? 0;
 
+    // P1: sanitize before prompt interpolation (control chars + length clamps live in sanitize.ts)
+    const safeKeyword = sanitizeKeyword(keyword);
+    const safeLocation = sanitizeLocation(location ?? '');
+
     // 3. Construct validation prompt
     const prompt = `You are a senior editorial director and SEO quality auditor. Your role is to validate that AI-generated content meets publication standards for quality, trust, depth, and user value. You protect brand reputation by rejecting content with hallucinations, thin substance, or weak E-E-A-T signals.
 
 INPUT CONTEXT:
-Keyword: ${keyword}
-Location: ${location || 'Not specified'}
+Keyword: ${safeKeyword}
+Location: ${safeLocation || 'Not specified'}
 Business Type: ${business_type ?? 'unspecified'}
 
 APPROVED OPPORTUNITY (Gate A passed):
@@ -93,7 +107,7 @@ CTA: ${content.cta.text}
 VALIDATION CRITERIA:
 
 1. INTENT & OPPORTUNITY ALIGNMENT:
-   - Does the content actually satisfy the user intent behind "${keyword}"?
+   - Does the content actually satisfy the user intent behind "${safeKeyword}"?
    - Does it deliver on the approved opportunity promise: "${opportunity.title}"?
    - Would a real user searching this keyword feel their question was answered?
    - Are the user goals (${opportunity.user_goals.join(', ')}) addressed meaningfully?
@@ -179,7 +193,7 @@ Validate the generated content now. Return JSON only, no explanations.`;
       raw = JSON.parse(completion.choices[0].message.content ?? '{}');
     } catch {
       return NextResponse.json(
-        { error: 'LLM returned invalid JSON' },
+        { error: 'LLM returned invalid JSON', code: 'LLM_INVALID_JSON' },
         { status: 502 }
       );
     }
@@ -202,13 +216,11 @@ Validate the generated content now. Return JSON only, no explanations.`;
 
     if (error instanceof ZodError) {
       return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: error.issues,
-        },
+        { error: 'Validation failed', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }
+
 
     // Minimal: avoid leaking internal error details
     return NextResponse.json(

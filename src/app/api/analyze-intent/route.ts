@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { KeywordInputSchema, IntentAnalysisSchema } from '@/types/schemas';
 import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { sanitizeKeyword, sanitizeLocation } from '@/lib/sanitize';
 
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY;
@@ -13,6 +15,15 @@ export async function POST(req: NextRequest) {
   const endpoint = '[analyze-intent]';
 
   try {
+    // P1: Rate limit early to protect Groq spend
+    const ip = getClientIp(req.headers);
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Too many requests', code: 'RATE_LIMITED' },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     console.log(endpoint, 'Input:', JSON.stringify(body));
 
@@ -20,11 +31,15 @@ export async function POST(req: NextRequest) {
     const { keyword, location, business_type } = KeywordInputSchema.parse(body);
     console.log(endpoint, 'Validated:', { keyword, location, business_type });
 
+    // P1: sanitize before prompt interpolation (control chars + length clamps live in sanitize.ts)
+    const safeKeyword = sanitizeKeyword(keyword);
+    const safeLocation = sanitizeLocation(location ?? '');
+
     // 2. Prompt
     const prompt =
       `You are an SEO intent classification expert.\n\n` +
-      `Keyword: ${keyword}\n` +
-      `Location: ${location || 'global'}\n` +
+      `Keyword: ${safeKeyword}\n` +
+      `Location: ${safeLocation || 'global'}\n` +
       `Business Type: ${business_type || 'unspecified'}\n\n` +
       `Return ONLY valid JSON with this schema:\n` +
       `{
@@ -75,7 +90,7 @@ export async function POST(req: NextRequest) {
       raw = JSON.parse(completion.choices[0].message.content ?? '{}');
     } catch {
       return NextResponse.json(
-        { error: 'LLM returned invalid JSON' },
+        { error: 'LLM returned invalid JSON', code: 'LLM_INVALID_JSON' },
         { status: 502 }
       );
     }
@@ -98,8 +113,9 @@ export async function POST(req: NextRequest) {
 
     if (error instanceof ZodError) {
       // This covers invalid request payload (KeywordInputSchema)
+      // Minimal: avoid leaking internal validation details
       return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
+        { error: 'Validation failed', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }

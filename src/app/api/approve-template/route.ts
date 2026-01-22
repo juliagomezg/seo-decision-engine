@@ -5,6 +5,8 @@ import {
 } from '@/types/schemas';
 import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { sanitizeKeyword, sanitizeLocation } from '@/lib/sanitize';
 
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY;
@@ -16,6 +18,15 @@ export async function POST(req: NextRequest) {
   const endpoint = '[approve-template]';
 
   try {
+    // P1: Rate limit early to protect Groq spend
+    const ip = getClientIp(req.headers);
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Too many requests', code: 'RATE_LIMITED' },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     console.log(endpoint, 'Input:', JSON.stringify(body));
 
@@ -30,12 +41,16 @@ export async function POST(req: NextRequest) {
     } = TemplateGuardInputSchema.parse(body);
     console.log(endpoint, 'Validated:', { keyword, selected_template_index });
 
+    // P1: sanitize before prompt interpolation (control chars + length clamps live in sanitize.ts)
+    const safeKeyword = sanitizeKeyword(keyword);
+    const safeLocation = sanitizeLocation(location ?? '');
+
     // 2. Construct validation prompt
     const prompt = `You are a senior SEO strategist and information architect. Your role is to validate that a human-selected template structure is appropriate, substantive, and aligned with the approved opportunity.
 
 INPUT CONTEXT:
-Keyword: ${keyword}
-Location: ${location || 'Not specified'}
+Keyword: ${safeKeyword}
+Location: ${safeLocation || 'Not specified'}
 Business Type: ${business_type ?? 'unspecified'}
 
 APPROVED OPPORTUNITY (Gate A passed):
@@ -133,7 +148,7 @@ Validate the selected template structure now. Return JSON only, no explanations.
       raw = JSON.parse(completion.choices[0].message.content ?? '{}');
     } catch {
       return NextResponse.json(
-        { error: 'LLM returned invalid JSON' },
+        { error: 'LLM returned invalid JSON', code: 'LLM_INVALID_JSON' },
         { status: 502 }
       );
     }
@@ -156,13 +171,11 @@ Validate the selected template structure now. Return JSON only, no explanations.
 
     if (error instanceof ZodError) {
       return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: error.issues,
-        },
+        { error: 'Validation failed', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }
+
 
     const msg = String(error);
     const isMissingKey = msg.includes('GROQ_API_KEY is not set');
