@@ -5,6 +5,8 @@ import {
 } from '@/types/schemas';
 import { ZodError } from 'zod';
 import Groq from 'groq-sdk';
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
+import { sanitizeKeyword, sanitizeLocation } from '@/lib/sanitize';
 
 function getGroqClient() {
   const apiKey = process.env.GROQ_API_KEY;
@@ -16,6 +18,15 @@ export async function POST(req: NextRequest) {
   const endpoint = '[approve-opportunity]';
 
   try {
+    // P1: Rate limit early to protect Groq spend
+    const ip = getClientIp(req.headers);
+    if (!checkRateLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Too many requests', code: 'RATE_LIMITED' },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     console.log(endpoint, 'Input:', JSON.stringify(body));
 
@@ -30,6 +41,10 @@ export async function POST(req: NextRequest) {
     } = OpportunityGuardInputSchema.parse(body);
     console.log(endpoint, 'Validated:', { keyword, selected_opportunity_index });
 
+    // P1: sanitize before prompt interpolation (control chars + length clamps live in sanitize.ts)
+    const safeKeyword = sanitizeKeyword(keyword);
+    const safeLocation = sanitizeLocation(location ?? '');
+
     // 2. Extract sibling opportunities for duplication check
     const siblingOpportunities = intent_analysis.opportunities
       .filter((_, index) => index !== selected_opportunity_index)
@@ -42,8 +57,8 @@ export async function POST(req: NextRequest) {
     const prompt = `You are a senior SEO editor and content strategist. Your role is to validate that a human-selected content opportunity is high-quality, coherent, and non-generic.
 
 INPUT CONTEXT:
-Keyword: ${keyword}
-Location: ${location || 'Not specified'}
+Keyword: ${safeKeyword}
+Location: ${safeLocation || 'Not specified'}
 Business Type: ${business_type ?? 'unspecified'}
 Detected Intent: ${intent_analysis.query_classification}
 
@@ -137,7 +152,7 @@ Validate the selected opportunity now. Return JSON only, no explanations.`;
       raw = JSON.parse(completion.choices[0].message.content ?? '{}');
     } catch {
       return NextResponse.json(
-        { error: 'LLM returned invalid JSON' },
+        { error: 'LLM returned invalid JSON', code: 'LLM_INVALID_JSON' },
         { status: 502 }
       );
     }
@@ -160,13 +175,11 @@ Validate the selected opportunity now. Return JSON only, no explanations.`;
 
     if (error instanceof ZodError) {
       return NextResponse.json(
-        {
-          error: 'Validation failed',
-          details: error.issues,
-        },
+        { error: 'Validation failed', code: 'VALIDATION_ERROR' },
         { status: 400 }
       );
     }
+
 
     const msg = String(error);
     const isMissingKey = msg.includes('GROQ_API_KEY is not set');
