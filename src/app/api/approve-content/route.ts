@@ -1,47 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from "next/server";
 import {
   ContentGuardInputSchema,
   ContentGuardOutputSchema,
-} from '@/types/schemas';
-import { ZodError } from 'zod';
-import Groq from 'groq-sdk';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
-import { sanitizeKeyword, sanitizeLocation } from '@/lib/sanitize';
-
-function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
-  return new Groq({ apiKey });
-}
+} from "@/types/schemas";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
+import { callLLM } from "@/lib/llm";
+import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
 
 export async function POST(req: NextRequest) {
-  const endpoint = '[approve-content]';
+  const endpoint = "[approve-content]";
 
   try {
-    // P1: Rate limit early to protect Groq spend
+    // Rate limit early to protect Groq spend
     const ip = getClientIp(req.headers);
     if (!checkRateLimit(ip)) {
-      return NextResponse.json(
-        { error: 'Too many requests', code: 'RATE_LIMITED' },
-        { status: 429 }
-      );
+      return rateLimited();
     }
-    // 1. Check API key inside handler (don't break build)
-    let groq: Groq;
+
+    // Safe body parse
+    let body: unknown;
     try {
-      groq = getGroqClient();
+      body = await req.json();
     } catch {
-      console.error(endpoint, 'Missing GROQ_API_KEY');
-      return NextResponse.json(
-        { error: 'Server misconfigured', code: 'MISSING_GROQ_API_KEY' },
-        { status: 500 }
-      );
+      return badRequest("Invalid JSON body");
     }
+    console.log(endpoint, "Input:", JSON.stringify(body));
 
-    const body = await req.json();
-    console.log(endpoint, 'Input:', JSON.stringify(body));
-
-    // 2. Validate input
+    // Input validation
     const {
       keyword,
       location,
@@ -50,34 +36,34 @@ export async function POST(req: NextRequest) {
       template,
       content,
     } = ContentGuardInputSchema.parse(body);
-    console.log(endpoint, 'Validated:', { keyword, wordCount: content.metadata?.word_count });
+    console.log(endpoint, "Validated:", { keyword, wordCount: content.metadata?.word_count });
 
     // BUGFIX: metadata can be missing → avoid runtime crash
     const wordCount = content.metadata?.word_count ?? 0;
 
-    // P1: sanitize before prompt interpolation (control chars + length clamps live in sanitize.ts)
+    // Sanitize before prompt interpolation
     const safeKeyword = sanitizeKeyword(keyword);
-    const safeLocation = sanitizeLocation(location ?? '');
+    const safeLocation = sanitizeLocation(location ?? "");
 
-    // 3. Construct validation prompt
+    // Construct validation prompt
     const prompt = `You are a senior editorial director and SEO quality auditor. Your role is to validate that AI-generated content meets publication standards for quality, trust, depth, and user value. You protect brand reputation by rejecting content with hallucinations, thin substance, or weak E-E-A-T signals.
 
 INPUT CONTEXT:
 Keyword: ${safeKeyword}
-Location: ${safeLocation || 'Not specified'}
-Business Type: ${business_type ?? 'unspecified'}
+Location: ${safeLocation || "Not specified"}
+Business Type: ${business_type ?? "unspecified"}
 
 APPROVED OPPORTUNITY (Gate A passed):
 Title: ${opportunity.title}
 Description: ${opportunity.description}
-User Goals: ${opportunity.user_goals.join(', ')}
-Content Attributes Needed: ${opportunity.content_attributes_needed.join(', ')}
+User Goals: ${opportunity.user_goals.join(", ")}
+Content Attributes Needed: ${opportunity.content_attributes_needed.join(", ")}
 Rationale: ${opportunity.rationale}
 
 APPROVED TEMPLATE (Gate B passed):
 Template Name: ${template.name}
 H1: ${template.h1}
-Sections: ${template.sections.map((s) => s.heading_text).join(' | ')}
+Sections: ${template.sections.map((s) => s.heading_text).join(" | ")}
 Rationale: ${template.rationale}
 
 GENERATED CONTENT TO VALIDATE:
@@ -88,19 +74,19 @@ Word Count: ${wordCount}
 
 Sections:
 ${content.sections
-        .map(
-          (s, i) => `${i + 1}. ${s.heading_text} (${s.heading_level})
+  .map(
+    (s, i) => `${i + 1}. ${s.heading_text} (${s.heading_level})
    Content preview: ${s.content.substring(0, 200)}...`
-        )
-        .join('\n\n')}
+  )
+  .join("\n\n")}
 
 FAQs:
 ${content.faqs
-        .map(
-          (f, i) => `${i + 1}. ${f.question}
+  .map(
+    (f, i) => `${i + 1}. ${f.question}
    Answer: ${f.answer.substring(0, 150)}...`
-        )
-        .join('\n\n')}
+  )
+  .join("\n\n")}
 
 CTA: ${content.cta.text}
 
@@ -110,7 +96,7 @@ VALIDATION CRITERIA:
    - Does the content actually satisfy the user intent behind "${safeKeyword}"?
    - Does it deliver on the approved opportunity promise: "${opportunity.title}"?
    - Would a real user searching this keyword feel their question was answered?
-   - Are the user goals (${opportunity.user_goals.join(', ')}) addressed meaningfully?
+   - Are the user goals (${opportunity.user_goals.join(", ")}) addressed meaningfully?
 
 2. CONTENT DEPTH & SUBSTANCE:
    - Is the content genuinely informative or surface-level?
@@ -167,68 +153,16 @@ OUTPUT FORMAT (JSON ONLY):
 
 Validate the generated content now. Return JSON only, no explanations.`;
 
-    // 4. Call Groq with validation-specific settings with 30s timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    // LLM call
+    const validated = await callLLM({
+      prompt,
+      schema: ContentGuardOutputSchema,
+      preset: "validation",
+    });
 
-    let completion;
-    try {
-      completion = await groq.chat.completions.create(
-        {
-          model: 'mixtral-8x7b-32768',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.2,
-          top_p: 0.9,
-          max_tokens: 1200,
-          response_format: { type: 'json_object' },
-        },
-        { signal: controller.signal }
-      );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    let raw: unknown;
-    try {
-      raw = JSON.parse(completion.choices[0].message.content ?? '{}');
-    } catch {
-      return NextResponse.json(
-        { error: 'LLM returned invalid JSON', code: 'LLM_INVALID_JSON' },
-        { status: 502 }
-      );
-    }
-
-    // 5. Validate output
-    const validated = ContentGuardOutputSchema.parse(raw);
-
-    console.log(endpoint, 'Output:', { approved: validated.approved, risk_flags: validated.risk_flags });
-    return NextResponse.json(validated);
-  } catch (error) {
-    console.error(endpoint, 'Error:', error);
-
-    // Handle timeout
-    if (error instanceof Error && error.name === 'AbortError') {
-      return NextResponse.json(
-        { error: 'Request timeout', code: 'TIMEOUT' },
-        { status: 504 }
-      );
-    }
-
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', code: 'VALIDATION_ERROR' },
-        { status: 400 }
-      );
-    }
-
-
-    // Minimal: avoid leaking internal error details
-    return NextResponse.json(
-      {
-        error: 'Internal error',
-        code: 'INTERNAL_ERROR',
-      },
-      { status: 500 }
-    );
+    console.log(endpoint, "Output:", { approved: validated.approved, risk_flags: validated.risk_flags });
+    return ok(validated);
+  } catch (err) {
+    return mapErrorToResponse(err, { endpoint });
   }
 }

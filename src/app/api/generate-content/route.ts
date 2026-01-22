@@ -1,33 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { ContentRequestSchema, ContentDraftSchema } from '@/types/schemas';
-import { ZodError } from 'zod';
-import Groq from 'groq-sdk';
-import { sanitizeKeyword, sanitizeLocation } from '@/lib/sanitize';
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit';
-
-function getGroqClient() {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error('GROQ_API_KEY is not set');
-  return new Groq({ apiKey });
-}
+import { NextRequest } from "next/server";
+import { ContentRequestSchema, ContentDraftSchema } from "@/types/schemas";
+import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { callLLM } from "@/lib/llm";
+import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
 
 export async function POST(req: NextRequest) {
-  const endpoint = '[generate-content]';
+  const endpoint = "[generate-content]";
 
   try {
-    // P1: Rate limit early to protect Groq spend
+    // Rate limit early to protect Groq spend
     const ip = getClientIp(req.headers);
     if (!checkRateLimit(ip)) {
-      return NextResponse.json(
-        { error: 'Too many requests', code: 'RATE_LIMITED' },
-        { status: 429 }
-      );
+      return rateLimited();
     }
 
-    const body = await req.json();
-    console.log(endpoint, 'Input:', JSON.stringify(body));
+    // Safe body parse
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return badRequest("Invalid JSON body");
+    }
+    console.log(endpoint, "Input:", JSON.stringify(body));
 
-    // 1. Validate input
+    // Input validation
     const parsed = ContentRequestSchema.parse(body);
 
     // Normalize snake_case / camelCase
@@ -36,29 +33,34 @@ export async function POST(req: NextRequest) {
     const businessType = parsed.business_type;
     const selectedTemplate = parsed.selected_template ?? parsed.selectedTemplate;
 
-    console.log(endpoint, 'Validated:', { keyword, template: selectedTemplate?.name });
+    console.log(endpoint, "Validated:", { keyword, template: selectedTemplate?.name });
 
-    // P1: sanitize before prompt interpolation (control chars + length clamps live in sanitize.ts)
+    // Sanitize before prompt interpolation
     const safeKeyword = sanitizeKeyword(keyword);
-    const safeLocation = sanitizeLocation(location ?? '');
+    const safeLocation = sanitizeLocation(location ?? "");
 
     // Build section instructions from template
-    const sectionInstructions = selectedTemplate?.sections
-      ?.map((s, i) => `${i + 1}. ${s.heading_level.toUpperCase()}: "${s.heading_text}" (${s.content_type}) - ${s.rationale}`)
-      .join('\n') || '';
+    const sectionInstructions =
+      selectedTemplate?.sections
+        ?.map(
+          (s, i) =>
+            `${i + 1}. ${s.heading_level.toUpperCase()}: "${s.heading_text}" (${s.content_type}) - ${s.rationale}`
+        )
+        .join("\n") || "";
 
-    const faqInstructions = selectedTemplate?.faqs
-      ?.map((f, i) => `${i + 1}. Q: "${f.question}" - Guidance: ${f.answer_guidance}`)
-      .join('\n') || '';
+    const faqInstructions =
+      selectedTemplate?.faqs
+        ?.map((f, i) => `${i + 1}. Q: "${f.question}" - Guidance: ${f.answer_guidance}`)
+        .join("\n") || "";
 
-    // 2. Build prompt
+    // Build prompt
     const prompt = `You are an expert SEO content writer.
 
 Generate complete, high-quality content following the template structure below.
 
 Keyword: ${safeKeyword}
-Location: ${safeLocation || 'global'}
-Business Type: ${businessType || 'unspecified'}
+Location: ${safeLocation || "global"}
+Business Type: ${businessType || "unspecified"}
 
 Template: ${selectedTemplate?.name}
 H1: ${selectedTemplate?.h1}
@@ -109,74 +111,19 @@ Requirements:
 - Calculate accurate word_count
 - Content should be SEO-optimized but natural and helpful`;
 
-    // 3. Call Groq with 30s timeout
-    const groq = getGroqClient();
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    // LLM call
+    const validated = await callLLM({
+      prompt,
+      schema: ContentDraftSchema,
+      preset: "creative",
+    });
 
-    let completion;
-    try {
-      completion = await groq.chat.completions.create(
-        {
-          model: 'mixtral-8x7b-32768',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.5,
-          top_p: 0.9,
-          max_tokens: 6000,
-          response_format: { type: 'json_object' },
-        },
-        { signal: controller.signal }
-      );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    let raw: unknown;
-    try {
-      raw = JSON.parse(completion.choices[0].message.content ?? '{}');
-    } catch {
-      return NextResponse.json(
-        { error: 'LLM returned invalid JSON', code: 'LLM_INVALID_JSON' },
-        { status: 502 }
-      );
-    }
-
-    // 4. Validate output
-    const validated = ContentDraftSchema.parse(raw);
-
-    console.log(endpoint, 'Output:', {
+    console.log(endpoint, "Output:", {
       title: validated.title,
       wordCount: validated.metadata.word_count,
     });
-    return NextResponse.json(validated);
-  } catch (error) {
-    console.error(endpoint, 'Error:', error);
-
-    // Handle timeout
-    if (error instanceof Error && error.name === 'AbortError') {
-      return NextResponse.json(
-        { error: 'Request timeout', code: 'TIMEOUT' },
-        { status: 504 }
-      );
-    }
-
-    if (error instanceof ZodError) {
-      console.error(endpoint, 'Validation error:', error.issues);
-      // Minimal: avoid leaking internal validation details
-      return NextResponse.json(
-        { error: 'Validation failed', code: 'VALIDATION_ERROR' },
-        { status: 400 }
-      );
-    }
-
-    const msg = String(error);
-    const isMissingKey = msg.includes('GROQ_API_KEY is not set');
-
-    return NextResponse.json(
-      isMissingKey
-        ? { error: 'Server misconfigured', code: 'MISSING_GROQ_API_KEY' }
-        : { error: 'Content generation failed', code: 'INTERNAL_ERROR' },
-      { status: 500 }
-    );
+    return ok(validated);
+  } catch (err) {
+    return mapErrorToResponse(err, { endpoint });
   }
 }
