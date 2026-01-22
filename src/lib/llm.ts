@@ -74,6 +74,21 @@ export interface CallLLMOptions<T> {
   requestId?: string;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Optional observability hooks (P3) — no route changes required
+// ─────────────────────────────────────────────────────────────
+
+export type LLMEvent =
+  | { type: "llm.success"; preset: LLMPreset; latencyMs: number; requestId?: string }
+  | { type: "llm.error"; preset: LLMPreset; latencyMs: number; requestId?: string; code: string };
+
+let _onLLMEvent: ((e: LLMEvent) => void) | undefined;
+
+/** Register a handler for LLM events (success/error with timing) */
+export function setLLMEventHandler(handler?: (e: LLMEvent) => void) {
+  _onLLMEvent = handler;
+}
+
 /**
  * Unified LLM call wrapper with timeout, JSON parsing, and schema validation.
  *
@@ -89,6 +104,7 @@ export async function callLLM<T>(opts: CallLLMOptions<T>): Promise<T> {
     preset = "classification",
     timeoutMs = DEFAULT_TIMEOUT_MS,
     jsonMode = true,
+    requestId,
   } = opts;
 
   const { temperature, maxTokens } = LLM_PRESETS[preset];
@@ -96,6 +112,7 @@ export async function callLLM<T>(opts: CallLLMOptions<T>): Promise<T> {
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const start = Date.now();
 
   try {
     const completion = await groq.chat.completions.create(
@@ -110,10 +127,15 @@ export async function callLLM<T>(opts: CallLLMOptions<T>): Promise<T> {
       { signal: controller.signal }
     );
 
-    // Parse JSON
+    // Parse JSON (guard against empty/malformed Groq payload)
+    const content = completion.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      throw new LLMInvalidJSONError("Empty LLM response");
+    }
+
     let raw: unknown;
     try {
-      raw = JSON.parse(completion.choices[0].message.content ?? "{}");
+      raw = JSON.parse(content);
     } catch {
       throw new LLMInvalidJSONError();
     }
@@ -124,13 +146,42 @@ export async function callLLM<T>(opts: CallLLMOptions<T>): Promise<T> {
       throw new LLMOutputValidationError(result.error);
     }
 
+    _onLLMEvent?.({
+      type: "llm.success",
+      preset,
+      latencyMs: Date.now() - start,
+      requestId,
+    });
     return result.data;
   } catch (err) {
     // Convert AbortError to typed timeout error
     if (err instanceof Error && err.name === "AbortError") {
-      throw new LLMTimeoutError();
+      const e = new LLMTimeoutError();
+      _onLLMEvent?.({ type: "llm.error", preset, latencyMs: Date.now() - start, requestId, code: e.code });
+      throw e;
     }
-    throw err; // GroqConfigError, LLMInvalidJSONError, LLMOutputValidationError pass through
+    // Pass through our typed errors/config errors unchanged
+    if (
+      err instanceof GroqConfigError ||
+      err instanceof LLMInvalidJSONError ||
+      err instanceof LLMOutputValidationError ||
+      err instanceof LLMTimeoutError ||
+      err instanceof LLMUpstreamError
+    ) {
+      const code = (err as { code?: string }).code ?? "INTERNAL_ERROR";
+      _onLLMEvent?.({ type: "llm.error", preset, latencyMs: Date.now() - start, requestId, code });
+      throw err;
+    }
+
+    // Wrap unknown SDK/network/etc errors as upstream (prevents INTERNAL_ERROR for Groq faults)
+    if (err instanceof Error) {
+      const e = new LLMUpstreamError(err.message);
+      _onLLMEvent?.({ type: "llm.error", preset, latencyMs: Date.now() - start, requestId, code: e.code });
+      throw e;
+    }
+    const e = new LLMUpstreamError();
+    _onLLMEvent?.({ type: "llm.error", preset, latencyMs: Date.now() - start, requestId, code: e.code });
+    throw e;
   } finally {
     clearTimeout(timeoutId);
   }

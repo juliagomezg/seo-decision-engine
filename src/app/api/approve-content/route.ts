@@ -7,16 +7,18 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
+import { installTelemetry } from "@/lib/telemetry";
 
 export async function POST(req: NextRequest) {
+  installTelemetry();
   const endpoint = "[approve-content]";
-  const requestId = req.headers.get("x-request-id") ?? undefined;
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
 
   try {
     // Rate limit early to protect Groq spend
     const ip = getClientIp(req.headers);
     if (!checkRateLimit(ip)) {
-      return rateLimited();
+      return rateLimited(requestId);
     }
 
     // Safe body parse
@@ -24,9 +26,9 @@ export async function POST(req: NextRequest) {
     try {
       body = await req.json();
     } catch {
-      return badRequest("Invalid JSON body");
+      return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "Input:", JSON.stringify(body));
+    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation
     const {
@@ -75,19 +77,19 @@ Word Count: ${wordCount}
 
 Sections:
 ${content.sections
-  .map(
-    (s, i) => `${i + 1}. ${s.heading_text} (${s.heading_level})
+        .map(
+          (s, i) => `${i + 1}. ${s.heading_text} (${s.heading_level})
    Content preview: ${s.content.substring(0, 200)}...`
-  )
-  .join("\n\n")}
+        )
+        .join("\n\n")}
 
 FAQs:
 ${content.faqs
-  .map(
-    (f, i) => `${i + 1}. ${f.question}
+        .map(
+          (f, i) => `${i + 1}. ${f.question}
    Answer: ${f.answer.substring(0, 150)}...`
-  )
-  .join("\n\n")}
+        )
+        .join("\n\n")}
 
 CTA: ${content.cta.text}
 
@@ -159,6 +161,7 @@ Validate the generated content now. Return JSON only, no explanations.`;
       prompt,
       schema: ContentGuardOutputSchema,
       preset: "validation",
+      requestId,
     });
 
     console.log(endpoint, "Output:", { approved: validated.approved, risk_flags: validated.risk_flags });

@@ -4,16 +4,18 @@ import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
+import { installTelemetry } from "@/lib/telemetry";
 
 export async function POST(req: NextRequest) {
+  installTelemetry();
   const endpoint = "[generate-content]";
-  const requestId = req.headers.get("x-request-id") ?? undefined;
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
 
   try {
     // Rate limit early to protect Groq spend
     const ip = getClientIp(req.headers);
     if (!checkRateLimit(ip)) {
-      return rateLimited();
+      return rateLimited(requestId);
     }
 
     // Safe body parse
@@ -21,9 +23,9 @@ export async function POST(req: NextRequest) {
     try {
       body = await req.json();
     } catch {
-      return badRequest("Invalid JSON body");
+      return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "Input:", JSON.stringify(body));
+    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation
     const parsed = ContentRequestSchema.parse(body);
@@ -117,6 +119,7 @@ Requirements:
       prompt,
       schema: ContentDraftSchema,
       preset: "creative",
+      requestId,
     });
 
     console.log(endpoint, "Output:", {

@@ -9,6 +9,24 @@ import {
 } from "./llm";
 
 // ─────────────────────────────────────────────────────────────
+// Optional observability hooks (P3)
+// ─────────────────────────────────────────────────────────────
+
+export type ApiErrorEvent = {
+  type: "api.error";
+  code: ApiErrorCode;
+  endpoint: string;
+  requestId?: string;
+};
+
+let _onApiError: ((e: ApiErrorEvent) => void) | undefined;
+
+/** Register a handler for API errors (code + endpoint correlation) */
+export function setApiErrorHandler(handler?: (e: ApiErrorEvent) => void) {
+  _onApiError = handler;
+}
+
+// ─────────────────────────────────────────────────────────────
 // Response shapes — standardized across all routes
 // ─────────────────────────────────────────────────────────────
 
@@ -171,24 +189,31 @@ export function mapErrorToResponse(err: unknown, ctx: ErrorContext) {
   console.error(endpoint, "Error:", err);
 
   if (err instanceof LLMTimeoutError) {
+    _onApiError?.({ type: "api.error", code: "TIMEOUT", endpoint, requestId });
     return timeoutError(requestId);
   }
   if (err instanceof LLMInvalidJSONError) {
+    _onApiError?.({ type: "api.error", code: "LLM_INVALID_JSON", endpoint, requestId });
     return llmInvalidJsonError(requestId);
   }
   if (err instanceof LLMOutputValidationError) {
+    _onApiError?.({ type: "api.error", code: "LLM_OUTPUT_VALIDATION", endpoint, requestId });
     return llmOutputValidationError(requestId);
   }
   if (err instanceof LLMUpstreamError) {
+    _onApiError?.({ type: "api.error", code: "UPSTREAM_ERROR", endpoint, requestId });
     return upstreamError(requestId);
   }
   if (err instanceof ZodError) {
     // Input validation error (client fault)
+    _onApiError?.({ type: "api.error", code: "VALIDATION_ERROR", endpoint, requestId });
     return validationError(requestId);
   }
   if (err instanceof GroqConfigError) {
+    _onApiError?.({ type: "api.error", code: "MISSING_GROQ_API_KEY", endpoint, requestId });
     return configError(requestId);
   }
 
+  _onApiError?.({ type: "api.error", code: "INTERNAL_ERROR", endpoint, requestId });
   return internalError(requestId);
 }

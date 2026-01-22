@@ -7,16 +7,18 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
+import { installTelemetry } from "@/lib/telemetry";
 
 export async function POST(req: NextRequest) {
+  installTelemetry();
   const endpoint = "[approve-template]";
-  const requestId = req.headers.get("x-request-id") ?? undefined;
+  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
 
   try {
     // Rate limit early to protect Groq spend
     const ip = getClientIp(req.headers);
     if (!checkRateLimit(ip)) {
-      return rateLimited();
+      return rateLimited(requestId);
     }
 
     // Safe body parse
@@ -24,9 +26,9 @@ export async function POST(req: NextRequest) {
     try {
       body = await req.json();
     } catch {
-      return badRequest("Invalid JSON body");
+      return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "Input:", JSON.stringify(body));
+    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation
     const {
@@ -124,6 +126,7 @@ Validate the selected template structure now. Return JSON only, no explanations.
       prompt,
       schema: TemplateGuardOutputSchema,
       preset: "validation",
+      requestId,
     });
 
     console.log(endpoint, "Output:", { approved: validated.approved, risk_flags: validated.risk_flags });
