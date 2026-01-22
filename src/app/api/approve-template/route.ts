@@ -13,8 +13,11 @@ function getGroqClient() {
 }
 
 export async function POST(req: NextRequest) {
+  const endpoint = '[approve-template]';
+
   try {
     const body = await req.json();
+    console.log(endpoint, 'Input:', JSON.stringify(body));
 
     // 1. Validate input
     const {
@@ -25,6 +28,7 @@ export async function POST(req: NextRequest) {
       selected_template_index, // intentionally unused but validated
       template,
     } = TemplateGuardInputSchema.parse(body);
+    console.log(endpoint, 'Validated:', { keyword, selected_template_index });
 
     // 2. Construct validation prompt
     const prompt = `You are a senior SEO strategist and information architect. Your role is to validate that a human-selected template structure is appropriate, substantive, and aligned with the approved opportunity.
@@ -102,16 +106,27 @@ OUTPUT FORMAT (JSON ONLY):
 
 Validate the selected template structure now. Return JSON only, no explanations.`;
 
-    // 3. Call Groq (lazy client)
+    // 3. Call Groq (lazy client) with 30s timeout
     const groq = getGroqClient();
-    const completion = await groq.chat.completions.create({
-      model: 'mixtral-8x7b-32768',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-      top_p: 0.9,
-      max_tokens: 1000,
-      response_format: { type: 'json_object' },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let completion;
+    try {
+      completion = await groq.chat.completions.create(
+        {
+          model: 'mixtral-8x7b-32768',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+          top_p: 0.9,
+          max_tokens: 1000,
+          response_format: { type: 'json_object' },
+        },
+        { signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     let raw;
     try {
@@ -126,8 +141,19 @@ Validate the selected template structure now. Return JSON only, no explanations.
     // 4. Validate output
     const validated = TemplateGuardOutputSchema.parse(raw);
 
+    console.log(endpoint, 'Output:', { approved: validated.approved, risk_flags: validated.risk_flags });
     return NextResponse.json(validated);
   } catch (error) {
+    console.error(endpoint, 'Error:', error);
+
+    // Handle timeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        { error: 'Request timeout', code: 'TIMEOUT' },
+        { status: 504 }
+      );
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json(
         {
