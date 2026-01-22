@@ -7,6 +7,7 @@ import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-respo
 
 export async function POST(req: NextRequest) {
   const endpoint = "[propose-templates]";
+  const requestId = req.headers.get("x-request-id") ?? undefined;
 
   try {
     // Rate limit early to protect Groq spend
@@ -106,8 +107,8 @@ Requirements:
     });
 
     console.log(endpoint, "Output:", { templateCount: validated.templates.length });
-    return ok(validated);
+    return ok(validated, requestId);
   } catch (err) {
-    return mapErrorToResponse(err, { endpoint });
+    return mapErrorToResponse(err, { endpoint, requestId });
   }
 }

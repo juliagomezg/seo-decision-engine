@@ -33,11 +33,17 @@ export class LLMInvalidJSONError extends Error {
 /** 502 Bad Gateway — LLM output failed schema validation (upstream fault, not client) */
 export class LLMOutputValidationError extends Error {
   readonly code = "LLM_OUTPUT_VALIDATION" as const;
-  readonly issues: ZodError["issues"];
+  /** Non-enumerable to prevent log serialization bloat */
+  declare readonly issues: ZodError["issues"];
   constructor(zodError: ZodError) {
     super("LLM output failed schema validation");
     this.name = "LLMOutputValidationError";
-    this.issues = zodError.issues;
+    // Non-enumerable: won't appear in JSON.stringify or object spread
+    Object.defineProperty(this, "issues", {
+      value: zodError.issues,
+      enumerable: false,
+      writable: false,
+    });
   }
 }
 
