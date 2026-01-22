@@ -13,12 +13,15 @@ function getGroqClient() {
 }
 
 export async function POST(req: NextRequest) {
+  const endpoint = '[approve-content]';
+
   try {
     // 1. Check API key inside handler (don't break build)
     let groq: Groq;
     try {
       groq = getGroqClient();
     } catch {
+      console.error(endpoint, 'Missing GROQ_API_KEY');
       return NextResponse.json(
         { error: 'Server misconfigured', code: 'MISSING_GROQ_API_KEY' },
         { status: 500 }
@@ -26,6 +29,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
+    console.log(endpoint, 'Input:', JSON.stringify(body));
 
     // 2. Validate input
     const {
@@ -36,6 +40,7 @@ export async function POST(req: NextRequest) {
       template,
       content,
     } = ContentGuardInputSchema.parse(body);
+    console.log(endpoint, 'Validated:', { keyword, wordCount: content.metadata?.word_count });
 
     // BUGFIX: metadata can be missing → avoid runtime crash
     const wordCount = content.metadata?.word_count ?? 0;
@@ -148,15 +153,26 @@ OUTPUT FORMAT (JSON ONLY):
 
 Validate the generated content now. Return JSON only, no explanations.`;
 
-    // 4. Call Groq with validation-specific settings
-    const completion = await groq.chat.completions.create({
-      model: 'mixtral-8x7b-32768',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-      top_p: 0.9,
-      max_tokens: 1200,
-      response_format: { type: 'json_object' },
-    });
+    // 4. Call Groq with validation-specific settings with 30s timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let completion;
+    try {
+      completion = await groq.chat.completions.create(
+        {
+          model: 'mixtral-8x7b-32768',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+          top_p: 0.9,
+          max_tokens: 1200,
+          response_format: { type: 'json_object' },
+        },
+        { signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     let raw: unknown;
     try {
@@ -171,8 +187,19 @@ Validate the generated content now. Return JSON only, no explanations.`;
     // 5. Validate output
     const validated = ContentGuardOutputSchema.parse(raw);
 
+    console.log(endpoint, 'Output:', { approved: validated.approved, risk_flags: validated.risk_flags });
     return NextResponse.json(validated);
   } catch (error) {
+    console.error(endpoint, 'Error:', error);
+
+    // Handle timeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        { error: 'Request timeout', code: 'TIMEOUT' },
+        { status: 504 }
+      );
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json(
         {

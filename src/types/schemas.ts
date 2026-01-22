@@ -262,3 +262,82 @@ export const ContentGuardOutputSchema = z.object({
 });
 
 export type ContentGuardOutput = z.infer<typeof ContentGuardOutputSchema>;
+
+// ============================================
+// API REQUEST SCHEMAS (for mock routes)
+// ============================================
+
+// DRY: single source of truth for business types
+export const BusinessTypeSchema = z.enum([
+  'real_estate',
+  'hospitality',
+  'saas',
+  'local_services',
+]);
+
+// Cleaner index coercion:
+// - If it's a numeric string -> number
+// - If it's not numeric -> keep original so Zod says "expected number, received string"
+const IndexSchema = z.preprocess((v) => {
+  if (typeof v !== 'string') return v;
+  const n = Number(v);
+  return Number.isNaN(n) ? v : n;
+}, z.number().int().min(0));
+
+/**
+ * Request schema for /api/propose-templates
+ * Called after Gate A approval with the selected opportunity context
+ */
+export const TemplateRequestSchema = z
+  .object({
+    keyword: z.string().trim().min(1, 'Keyword is required'),
+    location: z.string().optional(),
+    business_type: BusinessTypeSchema.optional(),
+
+    // support snake_case + camelCase
+    selected_opportunity: OpportunitySchema.optional(),
+    selectedOpportunity: OpportunitySchema.optional(),
+
+    selected_opportunity_index: IndexSchema.optional(),
+    selectedOpportunityIndex: IndexSchema.optional(),
+  })
+  .refine((d) => d.selected_opportunity || d.selectedOpportunity, {
+    message: 'selected_opportunity is required',
+  })
+  .refine(
+    (d) =>
+      d.selected_opportunity_index !== undefined ||
+      d.selectedOpportunityIndex !== undefined,
+    { message: 'selected_opportunity_index is required' }
+  );
+
+export type TemplateRequest = z.infer<typeof TemplateRequestSchema>;
+
+/**
+ * Request schema for /api/generate-content
+ * Called after Gate B approval with the selected template context
+ */
+export const ContentRequestSchema = z
+  .object({
+    keyword: z.string().trim().min(1, 'Keyword is required'),
+    location: z.string().optional(),
+    business_type: BusinessTypeSchema.optional(),
+
+    // support snake_case + camelCase
+    selected_template: TemplateStructureSchema.optional(),
+    selectedTemplate: TemplateStructureSchema.optional(),
+
+    selected_template_index: IndexSchema.optional(),
+    selectedTemplateIndex: IndexSchema.optional(),
+  })
+  .refine((d) => d.selected_template || d.selectedTemplate, {
+    message: 'selected_template is required',
+  })
+  .refine(
+    (d) =>
+      d.selected_template_index !== undefined ||
+      d.selectedTemplateIndex !== undefined,
+    { message: 'selected_template_index is required' }
+  );
+
+export type ContentRequest = z.infer<typeof ContentRequestSchema>;

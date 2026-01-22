@@ -11,98 +11,14 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { StepIndicator } from '@/components/step-indicator';
 import { ConfidenceBadge } from '@/components/confidence-badge';
-
-type Opportunity = {
-  title: string;
-  description: string;
-  confidence: 'low' | 'medium' | 'high';
-  user_goals: string[];
-  content_attributes_needed: string[];
-  rationale: string;
-};
-
-type IntentAnalysis = {
-  query_classification: 'informational' | 'transactional' | 'navigational' | 'commercial';
-  primary_user_goals: string[];
-  opportunities: Opportunity[];
-  metadata: {
-    model: string;
-    prompt_version: string;
-    timestamp: string;
-  };
-};
-
-type TemplateSection = {
-  heading_level: 'h2' | 'h3';
-  heading_text: string;
-  content_type: 'text' | 'list' | 'table' | 'comparison' | 'faq';
-  rationale: string;
-};
-
-type TemplateStructure = {
-  name: string;
-  slug: string;
-  title: string;
-  h1: string;
-  sections: TemplateSection[];
-  faqs: Array<{ question: string; answer_guidance: string }>;
-  cta_suggestion: { text: string; position: 'top' | 'middle' | 'bottom' };
-  internal_link_suggestions: string[];
-  schema_org_types: string[];
-  rationale: string;
-};
-
-type TemplateProposal = {
-  templates: TemplateStructure[];
-  metadata: {
-    model: string;
-    prompt_version: string;
-    timestamp: string;
-  };
-};
-
-type GeneratedSection = {
-  heading_level: 'h2' | 'h3';
-  heading_text: string;
-  content: string;
-};
-
-type ContentDraft = {
-  title: string;
-  slug: string;
-  h1: string;
-  meta_description: string;
-  sections: GeneratedSection[];
-  faqs: Array<{ question: string; answer: string }>;
-  cta: { text: string; position: 'top' | 'middle' | 'bottom' };
-  metadata: {
-    model: string;
-    prompt_version: string;
-    timestamp: string;
-    word_count: number;
-  };
-};
-
-type OpportunityGuardResult = {
-  approved: boolean;
-  reasons: string[];
-  risk_flags: Array<'duplicate_risk' | 'generic' | 'mismatch_intent' | 'thin' | 'unsafe_claims'>;
-  suggested_fix: string;
-};
-
-type TemplateGuardResult = {
-  approved: boolean;
-  reasons: string[];
-  risk_flags: Array<'generic_structure' | 'mismatch_opportunity' | 'thin_content_risk' | 'duplicate_pattern' | 'overoptimized'>;
-  suggested_fix: string;
-};
-
-type ContentGuardResult = {
-  approved: boolean;
-  reasons: string[];
-  risk_flags: Array<'thin_content' | 'generic_language' | 'mismatch_intent' | 'overoptimized' | 'hallucination_risk' | 'eeat_weak' | 'duplicate_angle'>;
-  suggested_fix: string;
-};
+import type {
+  IntentAnalysis,
+  TemplateProposal,
+  ContentDraft,
+  OpportunityGuardOutput as OpportunityGuardResult,
+  TemplateGuardOutput as TemplateGuardResult,
+  ContentGuardOutput as ContentGuardResult,
+} from '@/types/schemas';
 
 const BUSINESS_TYPE_LABELS: Record<string, string> = {
   real_estate: 'Real Estate',
@@ -210,6 +126,8 @@ export default function Page() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setDownloadSuccess(true);
+    setTimeout(() => setDownloadSuccess(false), 1500);
     setDownloadSuccess(true);
     setTimeout(() => setDownloadSuccess(false), 1500);
   };
@@ -490,7 +408,7 @@ export default function Page() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="business-type">Business Type (optional)</Label>
-                <Select value={businessType} onValueChange={(value: any) => setBusinessType(value)} disabled={loading}>
+                <Select value={businessType} onValueChange={(value) => setBusinessType(value as typeof businessType)} disabled={loading}>
                   <SelectTrigger id="business-type" className="w-full">
                     <SelectValue placeholder="Select business type" />
                   </SelectTrigger>

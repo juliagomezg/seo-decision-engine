@@ -10,11 +10,15 @@ function getGroqClient() {
 }
 
 export async function POST(req: NextRequest) {
+  const endpoint = '[analyze-intent]';
+
   try {
     const body = await req.json();
+    console.log(endpoint, 'Input:', JSON.stringify(body));
 
     // 1. Validate input
     const { keyword, location, business_type } = KeywordInputSchema.parse(body);
+    console.log(endpoint, 'Validated:', { keyword, location, business_type });
 
     // 2. Prompt
     const prompt =
@@ -44,16 +48,27 @@ export async function POST(req: NextRequest) {
 }
 `;
 
-    // 3. Call Groq (lazy client)
+    // 3. Call Groq (lazy client) with 30s timeout
     const groq = getGroqClient();
-    const completion = await groq.chat.completions.create({
-      model: 'mixtral-8x7b-32768',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.35,
-      top_p: 0.9,
-      max_tokens: 2000,
-      response_format: { type: 'json_object' },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let completion;
+    try {
+      completion = await groq.chat.completions.create(
+        {
+          model: 'mixtral-8x7b-32768',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.35,
+          top_p: 0.9,
+          max_tokens: 2000,
+          response_format: { type: 'json_object' },
+        },
+        { signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     let raw: unknown;
     try {
@@ -68,8 +83,19 @@ export async function POST(req: NextRequest) {
     // 4. Validate output
     const validated = IntentAnalysisSchema.parse(raw);
 
+    console.log(endpoint, 'Output:', { classification: validated.query_classification, opportunities: validated.opportunities.length });
     return NextResponse.json(validated);
   } catch (error) {
+    console.error(endpoint, 'Error:', error);
+
+    // Handle timeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        { error: 'Request timeout', code: 'TIMEOUT' },
+        { status: 504 }
+      );
+    }
+
     if (error instanceof ZodError) {
       // This covers invalid request payload (KeywordInputSchema)
       return NextResponse.json(

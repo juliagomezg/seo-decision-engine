@@ -13,8 +13,11 @@ function getGroqClient() {
 }
 
 export async function POST(req: NextRequest) {
+  const endpoint = '[approve-opportunity]';
+
   try {
     const body = await req.json();
+    console.log(endpoint, 'Input:', JSON.stringify(body));
 
     // 1. Validate input
     const {
@@ -25,6 +28,7 @@ export async function POST(req: NextRequest) {
       selected_opportunity_index,
       selected_opportunity,
     } = OpportunityGuardInputSchema.parse(body);
+    console.log(endpoint, 'Validated:', { keyword, selected_opportunity_index });
 
     // 2. Extract sibling opportunities for duplication check
     const siblingOpportunities = intent_analysis.opportunities
@@ -106,16 +110,27 @@ OUTPUT FORMAT (JSON ONLY):
 
 Validate the selected opportunity now. Return JSON only, no explanations.`;
 
-    // 4. Call Groq with validation-specific settings (lazy client)
+    // 4. Call Groq with validation-specific settings (lazy client) with 30s timeout
     const groq = getGroqClient();
-    const completion = await groq.chat.completions.create({
-      model: 'mixtral-8x7b-32768',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.2,
-      top_p: 0.9,
-      max_tokens: 1000,
-      response_format: { type: 'json_object' },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    let completion;
+    try {
+      completion = await groq.chat.completions.create(
+        {
+          model: 'mixtral-8x7b-32768',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.2,
+          top_p: 0.9,
+          max_tokens: 1000,
+          response_format: { type: 'json_object' },
+        },
+        { signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     let raw: unknown;
     try {
@@ -130,8 +145,19 @@ Validate the selected opportunity now. Return JSON only, no explanations.`;
     // 5. Validate output
     const validated = OpportunityGuardOutputSchema.parse(raw);
 
+    console.log(endpoint, 'Output:', { approved: validated.approved, risk_flags: validated.risk_flags });
     return NextResponse.json(validated);
   } catch (error) {
+    console.error(endpoint, 'Error:', error);
+
+    // Handle timeout
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.json(
+        { error: 'Request timeout', code: 'TIMEOUT' },
+        { status: 504 }
+      );
+    }
+
     if (error instanceof ZodError) {
       return NextResponse.json(
         {
