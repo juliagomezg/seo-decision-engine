@@ -364,6 +364,30 @@ seo-decision-engine/
 - **30s Request Timeout** - AbortController on all LLM calls
 - **Export Options** - Copy to clipboard or download as Markdown
 
+## Known Limitations
+
+| Area | Limitation | Mitigation |
+|------|------------|------------|
+| **Rate Limiting** | No production rate limiting on API routes | Use `src/lib/rate-limit.ts` utility in production |
+| **Authentication** | No user auth - anyone can use the app | Add NextAuth or Supabase Auth before public deployment |
+| **Persistence** | No database - all state is client-side | Content is lost on page refresh; Supabase integration planned |
+| **LLM Provider** | Single Groq provider, no fallback | Add secondary provider (OpenAI/Anthropic) for resilience |
+| **Concurrency** | No queue system for LLM requests | May hit rate limits under heavy load |
+| **Caching** | No response caching | Identical queries re-call LLM every time |
+| **i18n** | UI hardcoded in Spanish | Extract strings for multi-language support |
+
+## Architecture Decisions
+
+| Decision | Rationale | Trade-off |
+|----------|-----------|-----------|
+| **Groq as sole LLM** | Fast inference, free tier generous | Less model variety; vendor lock-in |
+| **Client-side state only** | Simpler architecture, no DB needed | No persistence, no analytics |
+| **Hard gates (A/B)** | Prevents low-quality content at source | Adds friction; may block valid content |
+| **Zod as source of truth** | Single validation layer for API + types | Tight coupling between schema changes |
+| **No SSR for main page** | `'use client'` enables rich interactivity | No SEO for the tool itself (acceptable) |
+| **Spanish-only UI** | Target audience is Spanish-speaking SEOs | Limits international adoption |
+| **35s frontend timeout** | Balances UX with LLM response variability | Long waits on slow responses |
+
 ## Production Notes
 
 - API routes are hardened against invalid LLM output
