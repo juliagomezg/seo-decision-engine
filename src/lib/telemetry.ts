@@ -14,7 +14,11 @@ export function installTelemetry() {
   if (_installed) return;
   _installed = true;
 
+  const debug =
+    process.env.NODE_ENV !== "production" || process.env.TELEMETRY_DEBUG === "1";
+
   setLLMEventHandler((e) => {
+    if (!debug) return;
     // Replace with your metrics/logging provider (e.g., OpenTelemetry, Datadog, etc.)
     if (e.type === "llm.success") {
       console.log("[telemetry]", e.type, {
@@ -33,6 +37,7 @@ export function installTelemetry() {
   });
 
   setApiErrorHandler((e) => {
+    if (!debug) return;
     console.log("[telemetry]", e.type, {
       code: e.code,
       endpoint: e.endpoint,
