@@ -772,7 +772,7 @@ const ANALYSIS_CRITERIA_DETAILED = [
 - [x] Integrar LoadingOverlay en GateBStep
 - [x] GateAStep - Caja de criterios visible antes de selección
 - [x] GateBStep - Caja de criterios visible antes de selección
-- [ ] Agregar indicadores de riesgo en cards de oportunidades (requiere cambio en API)
+- [x] Agregar indicadores de riesgo en cards de oportunidades
 
 ### Prioridad 2 (Medio) ✅ COMPLETADO
 

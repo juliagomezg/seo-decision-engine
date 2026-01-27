@@ -1,15 +1,29 @@
 'use client';
 
-import { Info, CheckCircle2 } from 'lucide-react';
+import { Info, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfidenceBadge } from '@/components/confidence-badge';
 import { ValidationFeedback } from './ValidationFeedback';
 import { LoadingOverlay } from './LoadingOverlay';
 import { BackButton } from './BackButton';
 import type { GateAStepProps } from './types';
+import type { RiskIndicator } from '@/types/schemas';
+
+const RISK_INDICATOR_LABELS: Record<RiskIndicator, { label: string; description: string }> = {
+  thin_content: { label: 'Contenido delgado', description: 'Puede no haber suficiente información sustancial disponible' },
+  generic_angle: { label: 'Ángulo genérico', description: 'El enfoque es demasiado amplio o común' },
+  high_competition: { label: 'Alta competencia', description: 'SERP muy competitivo con sitios establecidos' },
+  low_volume: { label: 'Bajo volumen', description: 'Volumen de búsqueda bajo o nicho muy específico' },
+  seasonal_query: { label: 'Estacional', description: 'Tráfico variable según temporada' },
+  intent_mismatch: { label: 'Intención mixta', description: 'Podría no coincidir exactamente con la intención del usuario' },
+  monetization_weak: { label: 'Monetización débil', description: 'Potencial comercial limitado' },
+  eeat_risk: { label: 'Riesgo E-E-A-T', description: 'Tema sensible que requiere demostrar experiencia y autoridad' },
+};
 
 const VALIDATION_CRITERIA_DETAILED = [
   {
@@ -131,6 +145,38 @@ export function GateAStep({
               </CardHeader>
               <CardContent className="pt-0 pl-10">
                 <p className="text-sm text-muted-foreground mb-3">{opportunity.description}</p>
+
+                {/* Risk Indicators */}
+                {opportunity.risk_indicators && opportunity.risk_indicators.length > 0 && (
+                  <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="text-xs font-medium text-amber-800">
+                        {opportunity.risk_indicators.length} riesgo{opportunity.risk_indicators.length > 1 ? 's' : ''} detectado{opportunity.risk_indicators.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <TooltipProvider delayDuration={200}>
+                        {opportunity.risk_indicators.map((risk) => (
+                          <Tooltip key={risk}>
+                            <TooltipTrigger asChild>
+                              <Badge
+                                variant="outline"
+                                className="text-xs bg-amber-100 text-amber-800 border-amber-300 cursor-help"
+                              >
+                                {RISK_INDICATOR_LABELS[risk]?.label || risk}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              <p className="text-xs">{RISK_INDICATOR_LABELS[risk]?.description || risk}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ))}
+                      </TooltipProvider>
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-sm">
                   <span className="font-medium text-foreground">Por qué existe: </span>
                   <span className="text-muted-foreground">{opportunity.rationale}</span>

@@ -23,6 +23,19 @@ export type KeywordInput = z.infer<typeof KeywordInputSchema>;
 // INTENT ANALYSIS OUTPUT (Gate A Input)
 // ============================================
 
+export const RiskIndicatorSchema = z.enum([
+  'thin_content',       // Riesgo de contenido muy delgado
+  'generic_angle',      // Ángulo muy genérico
+  'high_competition',   // Competencia muy alta en SERP
+  'low_volume',         // Volumen de búsqueda bajo
+  'seasonal_query',     // Query estacional (tráfico variable)
+  'intent_mismatch',    // Posible desalineación con intención
+  'monetization_weak',  // Débil potencial de monetización
+  'eeat_risk',          // Riesgo E-E-A-T (temas sensibles)
+]);
+
+export type RiskIndicator = z.infer<typeof RiskIndicatorSchema>;
+
 export const OpportunitySchema = z.object({
   title: z.string().min(1),
   description: z.string().min(10),
@@ -30,6 +43,7 @@ export const OpportunitySchema = z.object({
   user_goals: z.array(z.string()).min(1, 'At least one user goal required'),
   content_attributes_needed: z.array(z.string()).min(1, 'At least one content attribute required'),
   rationale: z.string().min(10, 'Rationale must explain why this opportunity exists'),
+  risk_indicators: z.array(RiskIndicatorSchema).default([]),
 });
 
 export type Opportunity = z.infer<typeof OpportunitySchema>;

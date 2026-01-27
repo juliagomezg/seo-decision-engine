@@ -14,7 +14,8 @@ export const intentMock: IntentAnalysis = {
       confidence: 'high',
       user_goals: ['Compare features', 'Evaluate pricing'],
       content_attributes_needed: ['comparison', 'pricing', 'features'],
-      rationale: 'SERP results show listicles and comparison tables.'
+      rationale: 'SERP results show listicles and comparison tables.',
+      risk_indicators: []
     },
     {
       title: 'Pricing explainer page',
@@ -22,7 +23,8 @@ export const intentMock: IntentAnalysis = {
       confidence: 'medium',
       user_goals: ['Understand cost'],
       content_attributes_needed: ['pricing', 'faq'],
-      rationale: 'Many queries include "cost" and "pricing".'
+      rationale: 'Many queries include "cost" and "pricing".',
+      risk_indicators: ['seasonal_query']
     },
     {
       title: 'Use-case focused page',
@@ -30,7 +32,8 @@ export const intentMock: IntentAnalysis = {
       confidence: 'medium',
       user_goals: ['Evaluate fit'],
       content_attributes_needed: ['use_cases', 'examples'],
-      rationale: 'Use-case modifiers appear frequently in queries.'
+      rationale: 'Use-case modifiers appear frequently in queries.',
+      risk_indicators: ['high_competition']
     },
     {
       title: 'Feature breakdown page',
@@ -38,7 +41,8 @@ export const intentMock: IntentAnalysis = {
       confidence: 'low',
       user_goals: ['Learn features'],
       content_attributes_needed: ['features', 'details'],
-      rationale: 'Some SERP results focus on deep feature explanations.'
+      rationale: 'Some SERP results focus on deep feature explanations.',
+      risk_indicators: ['thin_content', 'generic_angle']
     },
     {
       title: 'FAQ-heavy page',
@@ -46,7 +50,8 @@ export const intentMock: IntentAnalysis = {
       confidence: 'low',
       user_goals: ['Resolve doubts'],
       content_attributes_needed: ['faq'],
-      rationale: 'People ask boxes dominate SERP.'
+      rationale: 'People ask boxes dominate SERP.',
+      risk_indicators: ['low_volume', 'monetization_weak']
     }
   ],
   metadata: {

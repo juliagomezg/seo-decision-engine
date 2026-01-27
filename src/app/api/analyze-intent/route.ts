@@ -41,6 +41,15 @@ export async function POST(req: NextRequest) {
       `Keyword: ${safeKeyword}\n` +
       `Location: ${safeLocation || "global"}\n` +
       `Business Type: ${business_type || "unspecified"}\n\n` +
+      `For each opportunity, identify RISK INDICATORS that could affect content strategy:\n` +
+      `- thin_content: Not enough substantive information available\n` +
+      `- generic_angle: Angle is too broad or templated\n` +
+      `- high_competition: Extremely competitive SERP\n` +
+      `- low_volume: Low search volume or too niche\n` +
+      `- seasonal_query: Strong seasonal patterns (variable traffic)\n` +
+      `- intent_mismatch: Might not match user search intent\n` +
+      `- monetization_weak: Limited commercial potential\n` +
+      `- eeat_risk: Difficult to establish E-E-A-T (legal, medical, financial)\n\n` +
       `Return ONLY valid JSON with this schema:\n` +
       `{
   "query_classification": "informational | commercial | navigational | transactional",
@@ -52,15 +61,17 @@ export async function POST(req: NextRequest) {
       "confidence": "low | medium | high",
       "user_goals": ["string"],
       "content_attributes_needed": ["string"],
-      "rationale": "string"
+      "rationale": "string",
+      "risk_indicators": ["thin_content", "generic_angle", "high_competition", "low_volume", "seasonal_query", "intent_mismatch", "monetization_weak", "eeat_risk"]
     }
   ],
   "metadata": {
     "model": "string",
-    "prompt_version": "v1.0.0",
+    "prompt_version": "v1.1.0",
     "timestamp": "ISO-8601"
   }
 }
+Note: risk_indicators should be an array with 0 or more of the listed values. Use empty array [] if no risks detected.
 `;
 
     // LLM call (1 line replaces ~25 LOC boilerplate)
