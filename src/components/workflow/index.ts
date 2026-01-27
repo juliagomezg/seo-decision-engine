@@ -4,4 +4,8 @@ export { GateBStep } from './GateBStep';
 export { ResultStep } from './ResultStep';
 export { ValidationFeedback } from './ValidationFeedback';
 export { BusinessContextBar } from './BusinessContextBar';
+export { ValidationCriteriaBox } from './ValidationCriteriaBox';
+export { BackButton } from './BackButton';
+export { ConfirmBackDialog } from './ConfirmBackDialog';
+export { LoadingOverlay } from './LoadingOverlay';
 export * from './types';

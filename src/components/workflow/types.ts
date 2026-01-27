@@ -30,6 +30,7 @@ export interface GateAStepProps {
   setGuardResult: (result: OpportunityGuardOutput | null) => void;
   loading: boolean;
   onApprove: () => void;
+  onBack: () => void;
 }
 
 export interface GateBStepProps {
@@ -43,6 +44,7 @@ export interface GateBStepProps {
   intentAnalysis: IntentAnalysis | null;
   loading: boolean;
   onApprove: () => void;
+  onBack: () => void;
 }
 
 export interface ResultStepProps {
@@ -55,12 +57,22 @@ export interface ResultStepProps {
   templateProposal: TemplateProposal | null;
   selectedTemplateIndex: number | null;
   onReset: () => void;
+  onBack: () => void;
+  onRegenerate: () => void;
+  isRegenerating: boolean;
 }
 
 export interface BusinessContextBarProps {
   keyword: string;
   businessType: BusinessType;
   intentAnalysis: IntentAnalysis | null;
+}
+
+export interface ValidationAction {
+  label: string;
+  description?: string;
+  onClick: () => void;
+  variant?: 'default' | 'outline' | 'ghost';
 }
 
 export interface ValidationFeedbackProps {
@@ -70,6 +82,7 @@ export interface ValidationFeedbackProps {
   riskFlags: string[];
   suggestedFix?: string;
   variant: 'error' | 'warning';
+  actions?: ValidationAction[];
 }
 
 export const BUSINESS_TYPE_LABELS: Record<string, string> = {
@@ -85,3 +98,8 @@ export const INTENT_LABELS: Record<string, string> = {
   navigational: 'Navigational',
   transactional: 'Transactional',
 };
+
+export interface ValidationCriteriaBoxProps {
+  criteria: string[];
+  title?: string;
+}

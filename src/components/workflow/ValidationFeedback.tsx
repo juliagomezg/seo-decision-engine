@@ -1,6 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import type { ValidationFeedbackProps } from './types';
 
 export function ValidationFeedback({
@@ -10,6 +11,7 @@ export function ValidationFeedback({
   riskFlags,
   suggestedFix,
   variant,
+  actions,
 }: ValidationFeedbackProps) {
   const isError = variant === 'error';
   const bgColor = isError ? 'bg-red-50' : 'bg-yellow-50';
@@ -21,6 +23,7 @@ export function ValidationFeedback({
   const badgeBg = isError ? 'bg-red-200' : 'bg-yellow-200';
   const badgeText = isError ? 'text-red-900' : 'text-yellow-900';
   const fixBg = isError ? 'bg-red-100' : 'bg-yellow-100';
+  const borderTopColor = isError ? 'border-red-200' : 'border-yellow-200';
 
   return (
     <Card className={`${borderColor} ${bgColor}`}>
@@ -33,7 +36,7 @@ export function ValidationFeedback({
       </CardHeader>
       <CardContent className="space-y-3">
         <div>
-          <p className={`text-sm font-medium ${titleColor} mb-2`}>Reasons:</p>
+          <p className={`text-sm font-medium ${titleColor} mb-2`}>Qué detectamos:</p>
           <ul className="space-y-1">
             {reasons.map((reason, i) => (
               <li key={i} className={`text-sm ${textColor} flex items-start gap-2`}>
@@ -45,7 +48,7 @@ export function ValidationFeedback({
         </div>
         {riskFlags.length > 0 && (
           <div>
-            <p className={`text-sm font-medium ${titleColor} mb-2`}>Risk Flags:</p>
+            <p className={`text-sm font-medium ${titleColor} mb-2`}>Señales de riesgo:</p>
             <div className="flex flex-wrap gap-2">
               {riskFlags.map((flag, i) => (
                 <span
@@ -60,8 +63,30 @@ export function ValidationFeedback({
         )}
         {suggestedFix && (
           <div>
-            <p className={`text-sm font-medium ${titleColor} mb-1`}>Suggested Fix:</p>
+            <p className={`text-sm font-medium ${titleColor} mb-1`}>Sugerencia:</p>
             <p className={`text-sm ${textColor} ${fixBg} rounded px-3 py-2`}>{suggestedFix}</p>
+          </div>
+        )}
+
+        {actions && actions.length > 0 && (
+          <div className={`pt-4 mt-4 border-t ${borderTopColor}`}>
+            <p className={`text-sm font-medium ${titleColor} mb-3`}>Qué puedes hacer:</p>
+            <div className="flex flex-wrap gap-2">
+              {actions.map((action, i) => (
+                <Button
+                  key={i}
+                  variant={action.variant || 'outline'}
+                  size="sm"
+                  onClick={action.onClick}
+                  className="h-auto py-2"
+                >
+                  <span>{action.label}</span>
+                  {action.description && (
+                    <span className="text-xs opacity-70 ml-1">({action.description})</span>
+                  )}
+                </Button>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>
