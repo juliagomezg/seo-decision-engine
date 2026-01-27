@@ -1,6 +1,6 @@
 # SEO Decision Engine - Handoff Document
 
-> **Fecha:** 2026-01-19
+> **Fecha:** 2026-01-26 (actualizado)
 > **Autor:** Claude Opus 4.5
 > **Propósito:** Documentación técnica para continuar desarrollo en otra máquina
 
@@ -22,10 +22,9 @@
 
 ### Estado Actual
 ```
-[██████████░░░░░░░░░░] 50% - Prototipo funcional
+[████████████████░░░░] 80% - MVP funcional completo
 ```
-- **Funcional:** UI completa, validación con LLM, exports
-- **Mock data:** Template proposal, content generation
+- **Funcional:** UI completa, todos los endpoints LLM live, validación, exports
 - **Pendiente:** Conexión DB, auth, tests, n8n webhooks
 
 ---
@@ -51,8 +50,8 @@
                                 ↓ [APPROVED]
 ┌─────────────────────────────────────────────────────────────────────┐
 │ STEP 2: TEMPLATE PROPOSAL                                           │
-│ POST /api/propose-templates                                         │
-│ ⚠️ MOCK DATA: Retorna 2 templates estáticos                         │
+│ POST /api/propose-templates (Groq LIVE)                             │
+│ Genera 2-3 templates de contenido dinámicos                         │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 ↓
             ╔═══════════════════════════════════╗
@@ -65,8 +64,8 @@
                                 ↓ [APPROVED]
 ┌─────────────────────────────────────────────────────────────────────┐
 │ STEP 3: CONTENT GENERATION                                          │
-│ POST /api/generate-content                                          │
-│ ⚠️ MOCK DATA: Retorna artículo CRM estático (420 palabras)          │
+│ POST /api/generate-content (Groq LIVE)                              │
+│ Genera contenido SEO completo basado en template                    │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 ↓
             ╔═══════════════════════════════════╗
@@ -92,9 +91,9 @@ seo-decision-engine/
 │   │   ├── api/
 │   │   │   ├── analyze-intent/route.ts      ✅ Groq LIVE
 │   │   │   ├── approve-opportunity/route.ts ✅ Groq LIVE
-│   │   │   ├── propose-templates/route.ts   ⚠️ MOCK DATA
+│   │   │   ├── propose-templates/route.ts   ✅ Groq LIVE
 │   │   │   ├── approve-template/route.ts    ✅ Groq LIVE
-│   │   │   ├── generate-content/route.ts    ⚠️ MOCK DATA
+│   │   │   ├── generate-content/route.ts    ✅ Groq LIVE
 │   │   │   └── approve-content/route.ts     ✅ Groq LIVE
 │   │   ├── page.tsx                         # 972 líneas - TODO: refactorizar
 │   │   ├── layout.tsx
@@ -105,10 +104,12 @@ seo-decision-engine/
 │   │   └── ui/                              # 8 componentes shadcn/ui
 │   ├── lib/
 │   │   ├── utils.ts                         # cn() helper
-│   │   └── mocks/
-│   │       ├── templates.mock.ts            # 2 templates estáticos
-│   │       ├── content.mock.ts              # Artículo CRM ejemplo
-│   │       └── intent.mock.ts               # 5 opportunities (no usado)
+│   │   ├── llm.ts                           # LLM wrapper con timeout y validación
+│   │   ├── groq.ts                          # Cliente Groq singleton + presets
+│   │   ├── api-response.ts                  # Helpers de respuesta HTTP
+│   │   ├── rate-limit.ts                    # Rate limiting en memoria
+│   │   ├── sanitize.ts                      # Sanitización de inputs
+│   │   └── telemetry.ts                     # Hooks de observabilidad
 │   └── types/
 │       └── schemas.ts                       # 264 líneas - Zod contracts
 ├── supabase/
@@ -138,14 +139,14 @@ seo-decision-engine/
 
 ### 3.2 Backend API ✅
 
-| Endpoint | LLM | Estado | Temperatura |
-|----------|-----|--------|-------------|
-| `/api/analyze-intent` | Groq | ✅ LIVE | 0.35 |
-| `/api/approve-opportunity` | Groq | ✅ LIVE | 0.2 |
-| `/api/propose-templates` | - | ⚠️ MOCK | - |
-| `/api/approve-template` | Groq | ✅ LIVE | 0.2 |
-| `/api/generate-content` | - | ⚠️ MOCK | - |
-| `/api/approve-content` | Groq | ✅ LIVE | 0.2 |
+| Endpoint | LLM | Estado | Preset (temp) |
+|----------|-----|--------|---------------|
+| `/api/analyze-intent` | Groq | ✅ LIVE | classification (0.35) |
+| `/api/approve-opportunity` | Groq | ✅ LIVE | validation (0.2) |
+| `/api/propose-templates` | Groq | ✅ LIVE | generation (0.4) |
+| `/api/approve-template` | Groq | ✅ LIVE | validation (0.2) |
+| `/api/generate-content` | Groq | ✅ LIVE | creative (0.5) |
+| `/api/approve-content` | Groq | ✅ LIVE | validation (0.2) |
 
 ### 3.3 Validación (Zod Schemas) ✅
 
@@ -204,19 +205,22 @@ CREATE TABLE approvals (
 
 | Feature | Archivo(s) | Descripción | Esfuerzo |
 |---------|-----------|-------------|----------|
-| **Template Generation LLM** | `api/propose-templates/route.ts` | Reemplazar mock con llamada Groq | 2-3h |
-| **Content Generation LLM** | `api/generate-content/route.ts` | Reemplazar mock con llamada Groq | 2-3h |
+| ~~**Template Generation LLM**~~ | ~~`api/propose-templates/route.ts`~~ | ~~Reemplazar mock con llamada Groq~~ | ✅ DONE |
+| ~~**Content Generation LLM**~~ | ~~`api/generate-content/route.ts`~~ | ~~Reemplazar mock con llamada Groq~~ | ✅ DONE |
 | **Conexión Supabase** | Nuevo archivo `lib/supabase.ts` | Guardar requests/approvals | 3-4h |
-| **Refactor page.tsx** | `page.tsx` → múltiples componentes | Dividir 972 líneas | 4-5h |
+| ~~**Refactor page.tsx**~~ | ~~`page.tsx` → múltiples componentes~~ | ~~Dividir 972 líneas~~ | ✅ DONE |
+| **Tests de schemas** | `src/types/__tests__/` | Unit tests para validación Zod | 2h |
+| **Extraer useWorkflow hook** | `src/hooks/useWorkflow.ts` | Reducir complejidad de page.tsx | 2h |
 
 ### 4.2 Prioridad MEDIA - Estabilización
 
 | Feature | Descripción | Esfuerzo |
 |---------|-------------|----------|
 | Error handling mejorado | Retry logic (MAX_LLM_RETRIES) | 2h |
-| Loading states | Skeletons durante API calls | 1-2h |
-| Rate limiting | Prevenir abuse de API | 2h |
-| Timeout handling | LLM_REQUEST_TIMEOUT implementation | 1h |
+| ~~**Loading states**~~ | ~~Skeletons durante API calls~~ | ✅ DONE (LoadingOverlay) |
+| ~~**Rate limiting**~~ | ~~Prevenir abuse de API~~ | ✅ DONE (10 req/min) |
+| ~~**Timeout handling**~~ | ~~LLM_REQUEST_TIMEOUT implementation~~ | ✅ DONE (30s AbortController) |
+| Timeout en frontend | AbortController en fetch calls | 1h |
 
 ### 4.3 Prioridad BAJA - Nice to Have
 
@@ -269,10 +273,12 @@ CREATE TABLE approvals (
 
 | Bug | Severidad | Ubicación | Descripción |
 |-----|-----------|-----------|-------------|
-| Mock data estático | Alta | `lib/mocks/*.ts` | Templates no varían por keyword |
+| ~~Mock data estático~~ | ~~Alta~~ | ~~`lib/mocks/*.ts`~~ | ✅ FIXED - Todos los endpoints son LLM live |
 | No retry en LLM fail | Media | Todos los routes | MAX_LLM_RETRIES no implementado |
-| State leak en reset | Baja | page.tsx:handleReset | Algunos estados pueden persistir |
-| Copy sin feedback visual | Baja | page.tsx:handleCopyContent | Toast notification falta |
+| ~~State leak en reset~~ | ~~Baja~~ | ~~page.tsx:handleReset~~ | ✅ FIXED - Reset limpia todo el estado |
+| ~~Copy sin feedback visual~~ | ~~Baja~~ | ~~ResultStep.tsx~~ | ✅ FIXED - Muestra "Copiado" |
+| Sin timeout en fetch frontend | Media | page.tsx | Frontend puede quedar stuck si backend no responde |
+| Índice sin validación de bounds | Media | page.tsx | selectedOpportunityIndex podría ser inválido |
 
 **Debugging tips:**
 ```typescript
@@ -309,65 +315,40 @@ export async function withRetry<T>(
 
 ### 5.3 Backend API Stabilization
 
-**Endpoints que necesitan trabajo:**
+**✅ Todos los endpoints ahora usan Groq LLM live.**
 
-#### `/api/propose-templates/route.ts` - REEMPLAZAR MOCK
+**Arquitectura de LLM implementada:**
+
 ```typescript
-// ACTUAL (mock):
-import { mockTemplates } from '@/lib/mocks/templates.mock';
-return NextResponse.json(mockTemplates);
+// src/lib/groq.ts - Presets por caso de uso
+export const LLM_PRESETS = {
+  classification: { temperature: 0.35, maxTokens: 2000 },  // Intent analysis
+  validation: { temperature: 0.2, maxTokens: 1200 },       // Gates (determinístico)
+  generation: { temperature: 0.4, maxTokens: 4000 },       // Templates
+  creative: { temperature: 0.5, maxTokens: 6000 },         // Contenido
+};
 
-// NUEVO (Groq):
-const prompt = `Genera 2-3 templates de contenido para:
-- Keyword: ${keyword}
-- Opportunity: ${selectedOpportunity.title}
-- User goals: ${selectedOpportunity.user_goals.join(', ')}
-
-Responde en JSON con estructura:
-{
-  "templates": [
-    {
-      "name": "string",
-      "slug": "string",
-      "h1": "string",
-      "sections": [{ "heading_level": "h2|h3", "heading_text": "string", "content_type": "text|list|table", "rationale": "string" }],
-      "faqs": [{ "question": "string", "answer_guidance": "string" }],
-      "cta_suggestion": { "text": "string", "position": "top|middle|bottom" }
-    }
-  ]
-}`;
+// src/lib/llm.ts - Wrapper unificado
+await callLLM({
+  prompt,
+  schema: ZodSchema,        // Validación automática de output
+  preset: "validation",     // Selecciona temperatura/tokens
+  timeoutMs: 30000,         // AbortController
+  requestId,                // Para telemetry
+});
 ```
 
-#### `/api/generate-content/route.ts` - REEMPLAZAR MOCK
-```typescript
-// Prompt sugerido:
-const prompt = `Genera contenido SEO completo basado en:
-- Template: ${selectedTemplate.name}
-- H1: ${selectedTemplate.h1}
-- Sections: ${JSON.stringify(selectedTemplate.sections)}
-- FAQs: ${JSON.stringify(selectedTemplate.faqs)}
+**Error handling robusto:**
+- `LLMTimeoutError` → 504
+- `LLMInvalidJSONError` → 502
+- `LLMOutputValidationError` → 502
+- `LLMUpstreamError` → 502
+- `GroqConfigError` → 500
 
-Genera contenido de 800-1200 palabras. Responde en JSON:
-{
-  "title": "string",
-  "h1": "string",
-  "meta_description": "string (50-160 chars)",
-  "sections": [{ "heading_level": "h2|h3", "heading_text": "string", "content": "string (párrafo completo)" }],
-  "faqs": [{ "question": "string", "answer": "string" }],
-  "cta": { "text": "string", "position": "bottom" }
-}`;
-```
-
-**Configuración de Groq recomendada:**
-```typescript
-// Para generación (más creativo):
-temperature: 0.5,
-max_tokens: 4000,
-
-// Para validación (más determinístico):
-temperature: 0.2,
-max_tokens: 1000,
-```
+**Próximos pasos para backend:**
+- [ ] Implementar retry logic con backoff exponencial
+- [ ] Considerar Redis para rate limiting distribuido
+- [ ] Agregar circuit breaker para Groq outages
 
 ### 5.4 Frontend UI Gates Validations
 
@@ -539,27 +520,28 @@ npm run lint
 
 ## 8. Resumen de Prioridades
 
-### Sprint 1: Funcionalidad Core
+### Sprint 1: Funcionalidad Core ✅ COMPLETADO
 ```
-[ ] Reemplazar mock en /api/propose-templates con Groq
-[ ] Reemplazar mock en /api/generate-content con Groq
-[ ] Conectar Supabase para persistencia
-```
-
-### Sprint 2: Estabilización
-```
-[ ] Implementar retry logic en API calls
-[ ] Mejorar error handling con mensajes específicos
-[ ] Agregar loading skeletons
-[ ] Rate limiting básico
+[x] Reemplazar mock en /api/propose-templates con Groq
+[x] Reemplazar mock en /api/generate-content con Groq
+[ ] Conectar Supabase para persistencia (pendiente)
 ```
 
-### Sprint 3: Refactorización
+### Sprint 2: Estabilización ✅ MAYORMENTE COMPLETADO
 ```
-[ ] Dividir page.tsx en componentes
-[ ] Crear custom hooks para API calls
-[ ] Implementar state machine para workflow
-[ ] Agregar tests básicos
+[ ] Implementar retry logic en API calls (pendiente)
+[x] Mejorar error handling con mensajes específicos
+[x] Agregar loading overlays (LoadingOverlay.tsx)
+[x] Rate limiting básico (10 req/min por IP)
+[x] Timeout handling (30s AbortController)
+```
+
+### Sprint 3: Refactorización ✅ PARCIALMENTE COMPLETADO
+```
+[x] Dividir page.tsx en componentes (workflow/ directory)
+[ ] Crear custom hooks para API calls (useWorkflow pendiente)
+[ ] Implementar state machine para workflow (opcional)
+[ ] Agregar tests básicos (EN PROGRESO)
 ```
 
 ### Sprint 4: Features Adicionales
@@ -591,4 +573,4 @@ npm run lint
 ---
 
 *Documento generado automáticamente por Claude Opus 4.5*
-*Última actualización: 2026-01-19*
+*Última actualización: 2026-01-26*

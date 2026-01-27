@@ -62,7 +62,7 @@ SEO Decision Engine explores a safer, more intentional way of using LLMs for SEO
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 15 + React 19 + TypeScript |
+| Frontend | Next.js 16 + React 19 + TypeScript |
 | Styling | Tailwind CSS v4 + shadcn/ui (Radix) |
 | Backend | Next.js API Routes |
 | LLM | Groq (mixtral-8x7b-32768) |
