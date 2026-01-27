@@ -1,6 +1,6 @@
 'use client';
 
-import { Info, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Info, CheckCircle2, AlertTriangle, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -118,6 +118,35 @@ export function GateAStep({
           </CardContent>
         </Card>
 
+        {intentAnalysis.opportunities.length === 0 ? (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="py-12 text-center">
+              <Search className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-amber-900 mb-2">
+                No encontramos oportunidades viables
+              </h3>
+              <p className="text-amber-800 mb-6 max-w-md mx-auto">
+                El análisis no identificó ángulos de contenido con suficiente potencial para esta keyword.
+                Esto puede ocurrir cuando la competencia es muy alta o el tema es muy específico.
+              </p>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-amber-900">Sugerencias:</p>
+                <ul className="text-sm text-amber-800 space-y-1">
+                  <li>• Prueba con una keyword más específica o long-tail</li>
+                  <li>• Añade un modificador de ubicación</li>
+                  <li>• Considera un ángulo diferente del tema</li>
+                </ul>
+              </div>
+              <Button
+                variant="outline"
+                className="mt-6 border-amber-300 text-amber-900 hover:bg-amber-100"
+                onClick={onBack}
+              >
+                Modificar keyword
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
         <RadioGroup
         value={selectedOpportunityIndex?.toString()}
         onValueChange={(value) => {
@@ -186,8 +215,9 @@ export function GateAStep({
           </Label>
         ))}
       </RadioGroup>
+        )}
 
-      {guardResult && !guardResult.approved && (
+      {intentAnalysis.opportunities.length > 0 && guardResult && !guardResult.approved && (
         <ValidationFeedback
           title="Esta oportunidad necesita ajuste"
           description="El ángulo seleccionado presenta riesgos que podrían afectar el resultado."
@@ -210,11 +240,13 @@ export function GateAStep({
         />
       )}
 
-      <div className="flex justify-center pt-4">
-        <Button size="lg" onClick={onApprove} disabled={selectedOpportunityIndex === null || loading}>
-          Confirmar selección
-        </Button>
-      </div>
+      {intentAnalysis.opportunities.length > 0 && (
+        <div className="flex justify-center pt-4">
+          <Button size="lg" onClick={onApprove} disabled={selectedOpportunityIndex === null || loading}>
+            Confirmar selección
+          </Button>
+        </div>
+      )}
       </div>
     </>
   );

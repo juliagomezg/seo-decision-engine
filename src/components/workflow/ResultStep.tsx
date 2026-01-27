@@ -219,16 +219,16 @@ export function ResultStep({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            Decision Log
-            <span className="text-xs text-muted-foreground font-normal">(Human approved)</span>
+            Registro de decisiones
+            <span className="text-xs text-muted-foreground font-normal">(Aprobado por ti)</span>
           </CardTitle>
-          <CardDescription>Your approved path through the decision engine</CardDescription>
+          <CardDescription>Tu camino a través del motor de decisiones</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-start gap-3">
             <span className="text-emerald-600 font-semibold">✓</span>
             <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Gate A approved</p>
+              <p className="text-sm font-medium text-foreground">Ángulo aprobado</p>
               <p className="text-sm text-muted-foreground">
                 {intentAnalysis && selectedOpportunityIndex !== null
                   ? intentAnalysis.opportunities[selectedOpportunityIndex]?.title ?? '—'
@@ -239,7 +239,7 @@ export function ResultStep({
           <div className="flex items-start gap-3">
             <span className="text-emerald-600 font-semibold">✓</span>
             <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Gate B approved</p>
+              <p className="text-sm font-medium text-foreground">Estructura aprobada</p>
               <p className="text-sm text-muted-foreground">
                 {templateProposal && selectedTemplateIndex !== null
                   ? templateProposal.templates[selectedTemplateIndex]?.name ?? '—'
@@ -301,13 +301,13 @@ export function ResultStep({
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meta Description</p>
           <p className="text-muted-foreground">{contentDraft.meta_description}</p>
           <p className="text-xs text-muted-foreground mt-2">
-            Word count: {contentDraft.metadata.word_count} | Model: {contentDraft.metadata.model}
+            Palabras: {contentDraft.metadata.word_count} | Modelo: {contentDraft.metadata.model}
           </p>
         </CardContent>
       </Card>
 
       <div className="space-y-6">
-        <h3 className="text-lg font-semibold text-foreground">Content Sections</h3>
+        <h3 className="text-lg font-semibold text-foreground">Secciones del contenido</h3>
         {contentDraft.sections.map((section, index) => (
           <Card key={index}>
             <CardHeader className="pb-2">
@@ -321,7 +321,7 @@ export function ResultStep({
       </div>
 
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground">Frequently Asked Questions</h3>
+        <h3 className="text-lg font-semibold text-foreground">Preguntas frecuentes</h3>
         <div className="grid gap-4 md:grid-cols-2">
           {contentDraft.faqs.map((faq, index) => (
             <Card key={index}>
@@ -338,11 +338,11 @@ export function ResultStep({
 
       <Card className="bg-primary text-primary-foreground">
         <CardHeader>
-          <CardTitle className="text-xl">Call to Action</CardTitle>
+          <CardTitle className="text-xl">Llamada a la acción</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-primary-foreground/90 mb-2">{contentDraft.cta.text}</p>
-          <p className="text-xs text-primary-foreground/70">CTA Position: {contentDraft.cta.position}</p>
+          <p className="text-xs text-primary-foreground/70">Posición: {contentDraft.cta.position}</p>
         </CardContent>
       </Card>
 

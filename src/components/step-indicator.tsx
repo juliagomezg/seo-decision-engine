@@ -1,27 +1,27 @@
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react';
 
-type Step = 'input' | 'gate_a' | 'gate_b' | 'result'
+type Step = 'input' | 'gate_a' | 'gate_b' | 'result';
 
 interface StepIndicatorProps {
-  currentStep: Step
+  currentStep: Step;
 }
 
 export function StepIndicator({ currentStep }: StepIndicatorProps) {
   const steps: { key: Step; label: string }[] = [
-    { key: 'input', label: 'Intent Analysis' },
-    { key: 'gate_a', label: 'Approve Opportunity' },
-    { key: 'gate_b', label: 'Approve Template' },
-    { key: 'result', label: 'Generated Content' },
-  ]
+    { key: 'input', label: 'Análisis de intención' },
+    { key: 'gate_a', label: 'Elegir ángulo' },
+    { key: 'gate_b', label: 'Elegir estructura' },
+    { key: 'result', label: 'Contenido generado' },
+  ];
 
-  const currentIndex = steps.findIndex((s) => s.key === currentStep)
+  const currentIndex = steps.findIndex((s) => s.key === currentStep);
 
   return (
     <ol className="flex items-center justify-center gap-2 mb-10">
       {steps.map((step, index) => {
-        const isCompleted = index < currentIndex
-        const isCurrent = index === currentIndex
-        const isActive = isCompleted || isCurrent
+        const isCompleted = index < currentIndex;
+        const isCurrent = index === currentIndex;
+        const isActive = isCompleted || isCurrent;
 
         return (
           <li key={step.key} className="flex items-center" aria-current={isCurrent ? 'step' : undefined}>
@@ -47,8 +47,8 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
               <div className={`w-8 md:w-16 h-px mx-2 ${isCompleted ? 'bg-primary' : 'bg-border'}`} />
             )}
           </li>
-        )
+        );
       })}
     </ol>
-  )
+  );
 }

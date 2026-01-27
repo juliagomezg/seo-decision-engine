@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { AlertCircle, RefreshCw, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertCircle, RefreshCw, X, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StepIndicator } from '@/components/step-indicator';
 import {
@@ -48,6 +48,17 @@ export default function Page() {
   const [showBackDialog, setShowBackDialog] = useState(false);
   const [backTarget, setBackTarget] = useState<BackTarget>(null);
   const [backDialogMessage, setBackDialogMessage] = useState('');
+
+  // Success message state
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Auto-hide success message after 2 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
 
   const handleAnalyzeIntent = async () => {
     if (!keyword.trim()) {
@@ -145,6 +156,7 @@ export default function Page() {
 
       const data: TemplateProposal = await res.json();
       setTemplateProposal(data);
+      setSuccessMessage('✓ Oportunidad validada');
       setStep('gate_b');
       setSelectedTemplateIndex(null);
     } catch (err) {
@@ -246,6 +258,7 @@ export default function Page() {
       const contentValidationData: ContentGuardResult = await contentValidationRes.json();
       setGuardContentResult(contentValidationData);
 
+      setSuccessMessage('✓ Estructura validada');
       setStep('result');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -419,6 +432,15 @@ export default function Page() {
         </header>
 
         <StepIndicator currentStep={step} />
+
+        {successMessage && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-lg mb-6 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <span className="font-medium">{successMessage}</span>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg mb-6">
