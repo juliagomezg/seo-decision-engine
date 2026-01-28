@@ -5,6 +5,7 @@ import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
 import { installTelemetry } from "@/lib/telemetry";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   installTelemetry();
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     } catch {
       return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
+    log("debug", endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation
     const parsed = TemplateRequestSchema.parse(body);
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     const safeKeyword = sanitizeKeyword(keyword);
     const safeLocation = sanitizeLocation(location ?? "");
 
-    console.log(endpoint, "Validated:", { keyword, opportunity: selectedOpportunity?.title });
+    log("debug", endpoint, "Validated:", { keyword, opportunity: selectedOpportunity?.title });
 
     // Build prompt
     const prompt = `You are an SEO content strategist.
@@ -109,7 +110,7 @@ Requirements:
       requestId,
     });
 
-    console.log(endpoint, "Output:", { templateCount: validated.templates.length });
+    log("debug", endpoint, "Output:", { templateCount: validated.templates.length });
     return ok(validated, requestId);
   } catch (err) {
     return mapErrorToResponse(err, { endpoint, requestId });

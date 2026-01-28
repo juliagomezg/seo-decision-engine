@@ -5,6 +5,7 @@ import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
 import { installTelemetry } from "@/lib/telemetry";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   installTelemetry();
@@ -25,11 +26,11 @@ export async function POST(req: NextRequest) {
     } catch {
       return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
+    log("debug", endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation (throws ZodError → mapErrorToResponse handles it)
     const { keyword, location, business_type } = KeywordInputSchema.parse(body);
-    console.log(endpoint, "Validated:", { keyword, location, business_type });
+    log("debug", endpoint, "Validated:", { keyword, location, business_type });
 
     // Sanitize before prompt interpolation
     const safeKeyword = sanitizeKeyword(keyword);
@@ -82,7 +83,7 @@ Note: risk_indicators should be an array with 0 or more of the listed values. Us
       requestId,
     });
 
-    console.log(endpoint, "Output:", {
+    log("debug", endpoint, "Output:", {
       classification: validated.query_classification,
       opportunities: validated.opportunities.length,
     });

@@ -11,87 +11,51 @@ import type {
 } from '@/types/schemas';
 import type { WorkflowStep, BusinessType } from '@/components/workflow';
 
-// Timeout for API calls (35s - slightly longer than backend's 30s)
-const API_TIMEOUT_MS = 35000;
-
-class FetchTimeoutError extends Error {
-  constructor() {
-    super('La solicitud tardó demasiado. Por favor, inténtalo de nuevo.');
-    this.name = 'FetchTimeoutError';
-  }
-}
-
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number = API_TIMEOUT_MS
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    return response;
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      throw new FetchTimeoutError();
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+// Soft timeout UX only — real cancellation handled server-side in llm.ts 
+const SOFT_TIMEOUT_MS = 35000;
+function startSoftTimeout(onSlow: () => void, ms: number = SOFT_TIMEOUT_MS) {
+  const id = setTimeout(onSlow, ms);
+  return () => clearTimeout(id);
 }
 
 type BackTarget = 'input' | 'gate_a' | 'gate_b' | null;
 
 export interface UseWorkflowReturn {
-  // Current step
   step: WorkflowStep;
-  
-  // Input state
+
   keyword: string;
   setKeyword: (value: string) => void;
   location: string;
   setLocation: (value: string) => void;
   businessType: BusinessType;
   setBusinessType: (value: BusinessType) => void;
-  
-  // Loading and error state
+
   loading: boolean;
   error: string | null;
   setError: (error: string | null) => void;
   isRegenerating: boolean;
-  
-  // Gate A state
+
   intentAnalysis: IntentAnalysis | null;
   selectedOpportunityIndex: number | null;
   setSelectedOpportunityIndex: (index: number | null) => void;
   guardResult: OpportunityGuardOutput | null;
   setGuardResult: (result: OpportunityGuardOutput | null) => void;
-  
-  // Gate B state
+
   templateProposal: TemplateProposal | null;
   selectedTemplateIndex: number | null;
   setSelectedTemplateIndex: (index: number | null) => void;
   guardTemplateResult: TemplateGuardOutput | null;
   setGuardTemplateResult: (result: TemplateGuardOutput | null) => void;
-  
-  // Result state
+
   contentDraft: ContentDraft | null;
   guardContentResult: ContentGuardOutput | null;
-  
-  // Success message
+
   successMessage: string | null;
-  
-  // Back navigation
+
   showBackDialog: boolean;
   setShowBackDialog: (show: boolean) => void;
   backDialogMessage: string;
-  
-  // Actions
+
   handleAnalyzeIntent: () => Promise<void>;
   handleApproveOpportunity: () => Promise<void>;
   handleApproveTemplate: () => Promise<void>;
@@ -107,39 +71,39 @@ export interface UseWorkflowReturn {
 export function useWorkflow(): UseWorkflowReturn {
   // Step state
   const [step, setStep] = useState<WorkflowStep>('input');
-  
+
   // Input state
   const [keyword, setKeyword] = useState('');
   const [location, setLocation] = useState('');
   const [businessType, setBusinessType] = useState<BusinessType>('');
-  
+
   // Loading and error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isRegenerating, setIsRegenerating] = useState(false);
-  
+
   // Gate A state
   const [intentAnalysis, setIntentAnalysis] = useState<IntentAnalysis | null>(null);
   const [selectedOpportunityIndex, setSelectedOpportunityIndex] = useState<number | null>(null);
   const [guardResult, setGuardResult] = useState<OpportunityGuardOutput | null>(null);
-  
+
   // Gate B state
   const [templateProposal, setTemplateProposal] = useState<TemplateProposal | null>(null);
   const [selectedTemplateIndex, setSelectedTemplateIndex] = useState<number | null>(null);
   const [guardTemplateResult, setGuardTemplateResult] = useState<TemplateGuardOutput | null>(null);
-  
+
   // Result state
   const [contentDraft, setContentDraft] = useState<ContentDraft | null>(null);
   const [guardContentResult, setGuardContentResult] = useState<ContentGuardOutput | null>(null);
-  
+
   // Success message state
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
+
   // Back navigation state
   const [showBackDialog, setShowBackDialog] = useState(false);
   const [backTarget, setBackTarget] = useState<BackTarget>(null);
   const [backDialogMessage, setBackDialogMessage] = useState('');
-  
+
   // Auto-hide success message after 2 seconds
   useEffect(() => {
     if (successMessage) {
@@ -147,18 +111,18 @@ export function useWorkflow(): UseWorkflowReturn {
       return () => clearTimeout(timer);
     }
   }, [successMessage]);
-  
+
   // Wrapped setters that clear guard results
   const handleOpportunityIndexChange = useCallback((index: number | null) => {
     setSelectedOpportunityIndex(index);
     setGuardContentResult(null);
   }, []);
-  
+
   const handleTemplateIndexChange = useCallback((index: number | null) => {
     setSelectedTemplateIndex(index);
     setGuardContentResult(null);
   }, []);
-  
+
   // Action handlers
   const handleAnalyzeIntent = useCallback(async () => {
     if (!keyword.trim()) {
@@ -169,8 +133,13 @@ export function useWorkflow(): UseWorkflowReturn {
     setLoading(true);
     setError(null);
 
+    // UX-only slow warning (doesn't cancel request)
+    const slowStop = startSoftTimeout(() => {
+      setError('Está tardando más de lo normal… si no responde, inténtalo de nuevo.');
+    });
+
     try {
-      const res = await fetchWithTimeout('/api/analyze-intent', {
+      const res = await fetch('/api/analyze-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -181,15 +150,17 @@ export function useWorkflow(): UseWorkflowReturn {
       });
 
       if (!res.ok) {
-        throw new Error('El análisis de intención falló');
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'El análisis de intención falló');
       }
 
       const data: IntentAnalysis = await res.json();
       setIntentAnalysis(data);
       setStep('gate_a');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setError(err instanceof Error ? err.message : 'Error al analizar la intención');
     } finally {
+      slowStop();
       setLoading(false);
     }
   }, [keyword, location, businessType]);
@@ -204,10 +175,14 @@ export function useWorkflow(): UseWorkflowReturn {
     setError(null);
     setGuardResult(null);
 
+    const slowStop = startSoftTimeout(() => {
+      setError('Está tardando más de lo normal… si no responde, inténtalo de nuevo.');
+    });
+
     try {
       const selectedOpportunity = intentAnalysis.opportunities[selectedOpportunityIndex];
 
-      const validationRes = await fetchWithTimeout('/api/approve-opportunity', {
+      const validationRes = await fetch('/api/approve-opportunity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -235,7 +210,7 @@ export function useWorkflow(): UseWorkflowReturn {
         return;
       }
 
-      const res = await fetchWithTimeout('/api/propose-templates', {
+      const res = await fetch('/api/propose-templates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -262,6 +237,7 @@ export function useWorkflow(): UseWorkflowReturn {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
+      slowStop();
       setLoading(false);
     }
   }, [selectedOpportunityIndex, intentAnalysis, keyword, location, businessType]);
@@ -277,11 +253,16 @@ export function useWorkflow(): UseWorkflowReturn {
     setGuardTemplateResult(null);
     setGuardContentResult(null);
 
+
+    const stopSlow = startSoftTimeout(() => {
+      setError('Está tardando más de lo normal… si no responde, inténtalo de nuevo.');
+    });
+
     try {
       const selectedTemplate = templateProposal.templates[selectedTemplateIndex];
       const selectedOpportunity = intentAnalysis.opportunities[selectedOpportunityIndex];
 
-      const validationRes = await fetchWithTimeout('/api/approve-template', {
+      const validationRes = await fetch('/api/approve-template', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -313,7 +294,7 @@ export function useWorkflow(): UseWorkflowReturn {
         return;
       }
 
-      const res = await fetchWithTimeout('/api/generate-content', {
+      const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -335,7 +316,7 @@ export function useWorkflow(): UseWorkflowReturn {
       const data: ContentDraft = await res.json();
       setContentDraft(data);
 
-      const contentValidationRes = await fetchWithTimeout('/api/approve-content', {
+      const contentValidationRes = await fetch('/api/approve-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -375,11 +356,16 @@ export function useWorkflow(): UseWorkflowReturn {
     setIsRegenerating(true);
     setError(null);
 
+    const stopSlow = startSoftTimeout(() => {
+      setError('Está tardando más de lo normal… si no responde, inténtalo de nuevo.');
+    });
+
+
     try {
       const selectedTemplate = templateProposal.templates[selectedTemplateIndex];
       const selectedOpportunity = intentAnalysis.opportunities[selectedOpportunityIndex];
 
-      const res = await fetchWithTimeout('/api/generate-content', {
+      const res = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -402,7 +388,7 @@ export function useWorkflow(): UseWorkflowReturn {
       const data: ContentDraft = await res.json();
       setContentDraft(data);
 
-      const contentValidationRes = await fetchWithTimeout('/api/approve-content', {
+      const contentValidationRes = await fetch('/api/approve-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -427,9 +413,19 @@ export function useWorkflow(): UseWorkflowReturn {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');
     } finally {
+      stopSlow();
       setIsRegenerating(false);
     }
-  }, [selectedTemplateIndex, templateProposal, selectedOpportunityIndex, intentAnalysis, keyword, location, businessType, guardContentResult?.suggested_fix]);
+  }, [
+    selectedTemplateIndex,
+    templateProposal,
+    selectedOpportunityIndex,
+    intentAnalysis,
+    keyword,
+    location,
+    businessType,
+    guardContentResult?.suggested_fix
+  ]);
 
   const handleReset = useCallback(() => {
     setStep('input');
@@ -509,7 +505,7 @@ export function useWorkflow(): UseWorkflowReturn {
   return {
     // Current step
     step,
-    
+
     // Input state
     keyword,
     setKeyword,
@@ -517,39 +513,39 @@ export function useWorkflow(): UseWorkflowReturn {
     setLocation,
     businessType,
     setBusinessType,
-    
+
     // Loading and error state
     loading,
     error,
     setError,
     isRegenerating,
-    
+
     // Gate A state
     intentAnalysis,
     selectedOpportunityIndex,
     setSelectedOpportunityIndex: handleOpportunityIndexChange,
     guardResult,
     setGuardResult,
-    
+
     // Gate B state
     templateProposal,
     selectedTemplateIndex,
     setSelectedTemplateIndex: handleTemplateIndexChange,
     guardTemplateResult,
     setGuardTemplateResult,
-    
+
     // Result state
     contentDraft,
     guardContentResult,
-    
+
     // Success message
     successMessage,
-    
+
     // Back navigation
     showBackDialog,
     setShowBackDialog,
     backDialogMessage,
-    
+
     // Actions
     handleAnalyzeIntent,
     handleApproveOpportunity,

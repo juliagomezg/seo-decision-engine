@@ -8,6 +8,7 @@ import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
 import { installTelemetry } from "@/lib/telemetry";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   installTelemetry();
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     } catch {
       return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
+    log("debug", endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation
     const {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
       selected_opportunity_index,
       selected_opportunity,
     } = OpportunityGuardInputSchema.parse(body);
-    console.log(endpoint, "Validated:", { keyword, selected_opportunity_index });
+    log("debug", endpoint, "Validated:", { keyword, selected_opportunity_index });
 
     // Sanitize before prompt interpolation
     const safeKeyword = sanitizeKeyword(keyword);
@@ -133,7 +134,7 @@ Validate the selected opportunity now. Return JSON only, no explanations.`;
       requestId,
     });
 
-    console.log(endpoint, "Output:", { approved: validated.approved, risk_flags: validated.risk_flags });
+    log("debug", endpoint, "Output:", { approved: validated.approved, risk_flags: validated.risk_flags });
     return ok(validated, requestId);
   } catch (err) {
     return mapErrorToResponse(err, { endpoint, requestId });

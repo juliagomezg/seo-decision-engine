@@ -7,6 +7,7 @@ import {
   LLMUpstreamError,
   GroqConfigError,
 } from "./llm";
+import { log } from "./logger";
 
 // ─────────────────────────────────────────────────────────────
 // Optional observability hooks (P3)
@@ -186,7 +187,7 @@ export interface ErrorContext {
  */
 export function mapErrorToResponse(err: unknown, ctx: ErrorContext) {
   const { endpoint, requestId } = ctx;
-  console.error(endpoint, "Error:", err);
+  log("error", endpoint, "Error:", err);
 
   if (err instanceof LLMTimeoutError) {
     _onApiError?.({ type: "api.error", code: "TIMEOUT", endpoint, requestId });

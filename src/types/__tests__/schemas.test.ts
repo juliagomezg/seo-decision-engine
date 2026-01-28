@@ -101,8 +101,7 @@ describe('OpportunitySchema', () => {
   });
 
   it('accepts opportunity without risk_indicators (defaults to empty)', () => {
-    const withoutRisk = { ...validOpportunity };
-    delete withoutRisk.risk_indicators;
+    const { risk_indicators: _omit, ...withoutRisk } = validOpportunity;
 
     const result = OpportunitySchema.safeParse(withoutRisk);
     expect(result.success).toBe(true);
@@ -110,6 +109,7 @@ describe('OpportunitySchema', () => {
       expect(result.data.risk_indicators).toEqual([]);
     }
   });
+
 
   it('rejects opportunity with empty user_goals', () => {
     const invalid = { ...validOpportunity, user_goals: [] };

@@ -8,6 +8,7 @@ import { sanitizeKeyword, sanitizeLocation } from "@/lib/sanitize";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
 import { installTelemetry } from "@/lib/telemetry";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   installTelemetry();
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     } catch {
       return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
+    log("debug", endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation
     const {
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
       template,
       content,
     } = ContentGuardInputSchema.parse(body);
-    console.log(endpoint, "Validated:", { keyword, wordCount: content.metadata?.word_count });
+    log("debug", endpoint, "Validated:", { keyword, wordCount: content.metadata?.word_count });
 
     // BUGFIX: metadata can be missing → avoid runtime crash
     const wordCount = content.metadata?.word_count ?? 0;
@@ -164,7 +165,7 @@ Validate the generated content now. Return JSON only, no explanations.`;
       requestId,
     });
 
-    console.log(endpoint, "Output:", { approved: validated.approved, risk_flags: validated.risk_flags });
+    log("debug", endpoint, "Output:", { approved: validated.approved, risk_flags: validated.risk_flags });
     return ok(validated, requestId);
   } catch (err) {
     return mapErrorToResponse(err, { endpoint, requestId });

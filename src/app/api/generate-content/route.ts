@@ -5,6 +5,7 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { callLLM } from "@/lib/llm";
 import { ok, badRequest, rateLimited, mapErrorToResponse } from "@/lib/api-response";
 import { installTelemetry } from "@/lib/telemetry";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   installTelemetry();
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
     } catch {
       return badRequest("Invalid JSON body", requestId);
     }
-    console.log(endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
+    log("debug", endpoint, "requestId=", requestId, "Input:", JSON.stringify(body).slice(0, 500));
 
     // Input validation
     const parsed = ContentRequestSchema.parse(body);
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     const businessType = parsed.business_type;
     const selectedTemplate = parsed.selected_template ?? parsed.selectedTemplate;
 
-    console.log(endpoint, "Validated:", { keyword, template: selectedTemplate?.name });
+    log("debug", endpoint, "Validated:", { keyword, template: selectedTemplate?.name });
 
     // Sanitize before prompt interpolation
     const safeKeyword = sanitizeKeyword(keyword);
@@ -122,7 +123,7 @@ Requirements:
       requestId,
     });
 
-    console.log(endpoint, "Output:", {
+    log("debug", endpoint, "Output:", {
       title: validated.title,
       wordCount: validated.metadata.word_count,
     });
