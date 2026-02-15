@@ -51,6 +51,9 @@ export async function POST(req: NextRequest) {
       `- intent_mismatch: Might not match user search intent\n` +
       `- monetization_weak: Limited commercial potential\n` +
       `- eeat_risk: Difficult to establish E-E-A-T (legal, medical, financial)\n\n` +
+      `For each opportunity, also evaluate AEO+GEO potential:\n` +
+      `- aeo_potential (low|medium|high): likelihood of winning featured snippets or being cited by voice assistants. High = clear question-answer format, factual data, specific pricing/hours.\n` +
+      `- geo_potential (low|medium|high): likelihood of being cited by generative AI (Gemini, Perplexity, ChatGPT). High = self-contained sections, evidence-backed claims, entity data.\n\n` +
       `Return ONLY valid JSON with this schema:\n` +
       `{
   "query_classification": "informational | commercial | navigational | transactional",
@@ -63,16 +66,18 @@ export async function POST(req: NextRequest) {
       "user_goals": ["string"],
       "content_attributes_needed": ["string"],
       "rationale": "string",
-      "risk_indicators": ["thin_content", "generic_angle", "high_competition", "low_volume", "seasonal_query", "intent_mismatch", "monetization_weak", "eeat_risk"]
+      "risk_indicators": ["thin_content", "generic_angle", "high_competition", "low_volume", "seasonal_query", "intent_mismatch", "monetization_weak", "eeat_risk"],
+      "aeo_potential": "low | medium | high",
+      "geo_potential": "low | medium | high"
     }
   ],
   "metadata": {
     "model": "string",
-    "prompt_version": "v1.1.0",
+    "prompt_version": "v1.2.0",
     "timestamp": "ISO-8601"
   }
 }
-Note: risk_indicators should be an array with 0 or more of the listed values. Use empty array [] if no risks detected.
+Note: risk_indicators should be an array with 0 or more of the listed values. Use empty array [] if no risks detected. aeo_potential and geo_potential are optional but recommended.
 `;
 
     // LLM call (1 line replaces ~25 LOC boilerplate)

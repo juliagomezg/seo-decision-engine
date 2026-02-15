@@ -86,12 +86,22 @@ Return ONLY valid JSON with this schema:
       },
       "internal_link_suggestions": ["string"],
       "schema_org_types": ["string"],
-      "rationale": "string (why this template structure works)"
+      "rationale": "string (why this template structure works)",
+      "aeo_strategy": {
+        "snippet_type": "string (paragraph | list | table — best format for featured snippets)",
+        "voice_questions": ["string (2-5 natural voice search questions this template should answer)"],
+        "answer_unit_count": number (5-15, recommended citable answer units)
+      },
+      "geo_strategy": {
+        "schema_types": ["string (schema.org types to generate, e.g., FAQPage, LocalBusiness)"],
+        "chunking_strategy": "string (how sections should be chunked for AI retrieval)",
+        "evidence_density": "low | medium | high (how much verifiable evidence to include)"
+      }
     }
   ],
   "metadata": {
     "model": "string",
-    "prompt_version": "v1.0.0",
+    "prompt_version": "v1.1.0",
     "timestamp": "ISO-8601"
   }
 }
@@ -100,7 +110,10 @@ Requirements:
 - Provide 2-3 distinct template options
 - Each template must have at least 3 sections and at least 3 FAQs
 - Sections should address the user goals and content attributes
-- Make rationales specific to the keyword and opportunity`;
+- Make rationales specific to the keyword and opportunity
+- Include aeo_strategy with voice search questions and snippet format recommendation
+- Include geo_strategy with schema.org types and evidence density level
+- voice_questions should be natural queries a user would ask a voice assistant`;
 
     // LLM call
     const validated = await callLLM({

@@ -21,6 +21,8 @@ export default function Page() {
     setLocation,
     businessType,
     setBusinessType,
+    entityProfile,
+    setEntityProfile,
     loading,
     error,
     setError,
@@ -37,6 +39,7 @@ export default function Page() {
     setGuardTemplateResult,
     contentDraft,
     guardContentResult,
+    jsonldOutput,
     successMessage,
     showBackDialog,
     setShowBackDialog,
@@ -116,6 +119,8 @@ export default function Page() {
             setLocation={setLocation}
             businessType={businessType}
             setBusinessType={setBusinessType}
+            entityProfile={entityProfile}
+            setEntityProfile={setEntityProfile}
             loading={loading}
             onAnalyze={handleAnalyzeIntent}
           />
@@ -160,6 +165,8 @@ export default function Page() {
             selectedOpportunityIndex={selectedOpportunityIndex}
             templateProposal={templateProposal}
             selectedTemplateIndex={selectedTemplateIndex}
+            entityProfile={entityProfile}
+            jsonldOutput={jsonldOutput}
             onReset={handleReset}
             onBack={handleBackFromResult}
             onRegenerate={handleRegenerate}

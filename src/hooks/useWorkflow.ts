@@ -8,6 +8,8 @@ import type {
   OpportunityGuardOutput,
   TemplateGuardOutput,
   ContentGuardOutput,
+  EntityProfile,
+  JsonLdOutput,
 } from '@/types/schemas';
 import type { WorkflowStep, BusinessType } from '@/components/workflow';
 
@@ -29,6 +31,8 @@ export interface UseWorkflowReturn {
   setLocation: (value: string) => void;
   businessType: BusinessType;
   setBusinessType: (value: BusinessType) => void;
+  entityProfile: EntityProfile | null;
+  setEntityProfile: (value: EntityProfile | null) => void;
 
   loading: boolean;
   error: string | null;
@@ -49,6 +53,7 @@ export interface UseWorkflowReturn {
 
   contentDraft: ContentDraft | null;
   guardContentResult: ContentGuardOutput | null;
+  jsonldOutput: JsonLdOutput | null;
 
   successMessage: string | null;
 
@@ -77,6 +82,9 @@ export function useWorkflow(): UseWorkflowReturn {
   const [location, setLocation] = useState('');
   const [businessType, setBusinessType] = useState<BusinessType>('');
 
+  // Entity profile state
+  const [entityProfile, setEntityProfile] = useState<EntityProfile | null>(null);
+
   // Loading and error state
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +103,7 @@ export function useWorkflow(): UseWorkflowReturn {
   // Result state
   const [contentDraft, setContentDraft] = useState<ContentDraft | null>(null);
   const [guardContentResult, setGuardContentResult] = useState<ContentGuardOutput | null>(null);
+  const [jsonldOutput, setJsonldOutput] = useState<JsonLdOutput | null>(null);
 
   // Success message state
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -303,6 +312,7 @@ export function useWorkflow(): UseWorkflowReturn {
           business_type: businessType || undefined,
           selected_template: selectedTemplate,
           selected_template_index: selectedTemplateIndex,
+          entity_profile: entityProfile || undefined,
         }),
       });
 
@@ -313,8 +323,13 @@ export function useWorkflow(): UseWorkflowReturn {
         return;
       }
 
-      const data: ContentDraft = await res.json();
-      setContentDraft(data);
+      const data = await res.json();
+      // Extract jsonld_output if present (enhanced mode)
+      const { jsonld_output, ...contentData } = data;
+      setContentDraft(contentData as ContentDraft);
+      if (jsonld_output) {
+        setJsonldOutput(jsonld_output as JsonLdOutput);
+      }
 
       const contentValidationRes = await fetch('/api/approve-content', {
         method: 'POST',
@@ -325,7 +340,7 @@ export function useWorkflow(): UseWorkflowReturn {
           business_type: businessType || undefined,
           opportunity: selectedOpportunity,
           template: selectedTemplate,
-          content: data,
+          content: contentData,
         }),
       });
 
@@ -346,7 +361,7 @@ export function useWorkflow(): UseWorkflowReturn {
     } finally {
       setLoading(false);
     }
-  }, [selectedTemplateIndex, templateProposal, selectedOpportunityIndex, intentAnalysis, keyword, location, businessType]);
+  }, [selectedTemplateIndex, templateProposal, selectedOpportunityIndex, intentAnalysis, keyword, location, businessType, entityProfile]);
 
   const handleRegenerate = useCallback(async () => {
     if (selectedTemplateIndex === null || !templateProposal || selectedOpportunityIndex === null || !intentAnalysis) {
@@ -375,6 +390,7 @@ export function useWorkflow(): UseWorkflowReturn {
           selected_template: selectedTemplate,
           selected_template_index: selectedTemplateIndex,
           improvement_hint: guardContentResult?.suggested_fix || undefined,
+          entity_profile: entityProfile || undefined,
         }),
       });
 
@@ -385,8 +401,12 @@ export function useWorkflow(): UseWorkflowReturn {
         return;
       }
 
-      const data: ContentDraft = await res.json();
-      setContentDraft(data);
+      const data = await res.json();
+      const { jsonld_output, ...contentData } = data;
+      setContentDraft(contentData as ContentDraft);
+      if (jsonld_output) {
+        setJsonldOutput(jsonld_output as JsonLdOutput);
+      }
 
       const contentValidationRes = await fetch('/api/approve-content', {
         method: 'POST',
@@ -397,7 +417,7 @@ export function useWorkflow(): UseWorkflowReturn {
           business_type: businessType || undefined,
           opportunity: selectedOpportunity,
           template: selectedTemplate,
-          content: data,
+          content: contentData,
         }),
       });
 
@@ -424,6 +444,7 @@ export function useWorkflow(): UseWorkflowReturn {
     keyword,
     location,
     businessType,
+    entityProfile,
     guardContentResult?.suggested_fix
   ]);
 
@@ -432,6 +453,7 @@ export function useWorkflow(): UseWorkflowReturn {
     setKeyword('');
     setLocation('');
     setBusinessType('');
+    setEntityProfile(null);
     setIntentAnalysis(null);
     setSelectedOpportunityIndex(null);
     setGuardResult(null);
@@ -440,6 +462,7 @@ export function useWorkflow(): UseWorkflowReturn {
     setGuardTemplateResult(null);
     setContentDraft(null);
     setGuardContentResult(null);
+    setJsonldOutput(null);
     setError(null);
   }, []);
 
@@ -496,6 +519,7 @@ export function useWorkflow(): UseWorkflowReturn {
       setStep('gate_b');
       setContentDraft(null);
       setGuardContentResult(null);
+      setJsonldOutput(null);
       setError(null);
     }
     setShowBackDialog(false);
@@ -513,6 +537,8 @@ export function useWorkflow(): UseWorkflowReturn {
     setLocation,
     businessType,
     setBusinessType,
+    entityProfile,
+    setEntityProfile,
 
     // Loading and error state
     loading,
@@ -537,6 +563,7 @@ export function useWorkflow(): UseWorkflowReturn {
     // Result state
     contentDraft,
     guardContentResult,
+    jsonldOutput,
 
     // Success message
     successMessage,

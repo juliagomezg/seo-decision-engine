@@ -45,8 +45,8 @@ export const LLM_PRESETS = {
   classification: { temperature: 0.35, maxTokens: 2000 },
   /** Template generation — diverse options */
   generation: { temperature: 0.4, maxTokens: 4000 },
-  /** Content creation — natural language */
-  creative: { temperature: 0.5, maxTokens: 6000 },
+  /** Content creation — natural language (8K for enriched AEO+GEO output) */
+  creative: { temperature: 0.5, maxTokens: 8000 },
   /** Approval gates — strict validation */
   validation: { temperature: 0.2, maxTokens: 1200 },
 } as const;

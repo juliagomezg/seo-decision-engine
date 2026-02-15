@@ -5,11 +5,13 @@ import type {
   OpportunityGuardOutput,
   TemplateGuardOutput,
   ContentGuardOutput,
+  EntityProfile,
+  JsonLdOutput,
 } from '@/types/schemas';
 
 export type WorkflowStep = 'input' | 'gate_a' | 'gate_b' | 'result';
 
-export type BusinessType = '' | 'real_estate' | 'hospitality' | 'saas' | 'local_services';
+export type BusinessType = '' | 'real_estate' | 'hospitality' | 'saas' | 'local_services' | 'education' | 'healthcare' | 'food_and_beverage' | 'professional_services';
 
 export interface InputStepProps {
   keyword: string;
@@ -18,6 +20,8 @@ export interface InputStepProps {
   setLocation: (value: string) => void;
   businessType: BusinessType;
   setBusinessType: (value: BusinessType) => void;
+  entityProfile: EntityProfile | null;
+  setEntityProfile: (value: EntityProfile | null) => void;
   loading: boolean;
   onAnalyze: () => void;
 }
@@ -56,6 +60,8 @@ export interface ResultStepProps {
   selectedOpportunityIndex: number | null;
   templateProposal: TemplateProposal | null;
   selectedTemplateIndex: number | null;
+  entityProfile: EntityProfile | null;
+  jsonldOutput: JsonLdOutput | null;
   onReset: () => void;
   onBack: () => void;
   onRegenerate: () => void;
@@ -90,6 +96,10 @@ export const BUSINESS_TYPE_LABELS: Record<string, string> = {
   hospitality: 'Hospitality',
   saas: 'SaaS',
   local_services: 'Local Services',
+  education: 'Education',
+  healthcare: 'Healthcare',
+  food_and_beverage: 'Food & Beverage',
+  professional_services: 'Professional Services',
 };
 
 export const INTENT_LABELS: Record<string, string> = {

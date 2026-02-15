@@ -14,7 +14,7 @@ import { z } from 'zod';
 export const KeywordInputSchema = z.object({
   keyword: z.string().trim().min(1, 'Keyword is required').max(200, 'Keyword too long'),
   location: z.string().max(100).optional(),
-  business_type: z.enum(['real_estate', 'hospitality', 'saas', 'local_services']).optional(),
+  business_type: z.enum(['real_estate', 'hospitality', 'saas', 'local_services', 'education', 'healthcare', 'food_and_beverage', 'professional_services']).optional(),
 });
 
 export type KeywordInput = z.infer<typeof KeywordInputSchema>;
@@ -44,6 +44,8 @@ export const OpportunitySchema = z.object({
   content_attributes_needed: z.array(z.string()).min(1, 'At least one content attribute required'),
   rationale: z.string().min(10, 'Rationale must explain why this opportunity exists'),
   risk_indicators: z.array(RiskIndicatorSchema).default([]),
+  aeo_potential: z.enum(['low', 'medium', 'high']).optional(),
+  geo_potential: z.enum(['low', 'medium', 'high']).optional(),
 });
 
 export type Opportunity = z.infer<typeof OpportunitySchema>;
@@ -91,6 +93,16 @@ export const TemplateStructureSchema = z.object({
   internal_link_suggestions: z.array(z.string()).max(10),
   schema_org_types: z.array(z.string()).min(1, 'Must suggest at least one schema.org type'),
   rationale: z.string().min(20, 'Rationale must explain template structure choice'),
+  aeo_strategy: z.object({
+    snippet_type: z.string().min(1),
+    voice_questions: z.array(z.string()).min(1).max(5),
+    answer_unit_count: z.number().int().min(5).max(15),
+  }).optional(),
+  geo_strategy: z.object({
+    schema_types: z.array(z.string()).min(1),
+    chunking_strategy: z.string().min(1),
+    evidence_density: z.enum(['low', 'medium', 'high']),
+  }).optional(),
 });
 
 export type TemplateStructure = z.infer<typeof TemplateStructureSchema>;
@@ -185,7 +197,7 @@ export type ApprovalRecord = z.infer<typeof ApprovalRecordSchema>;
 export const OpportunityGuardInputSchema = z.object({
   keyword: z.string().trim().min(1),
   location: z.string().optional(),
-  business_type: z.enum(['real_estate', 'hospitality', 'saas', 'local_services']).optional(),
+  business_type: z.enum(['real_estate', 'hospitality', 'saas', 'local_services', 'education', 'healthcare', 'food_and_beverage', 'professional_services']).optional(),
   intent_analysis: IntentAnalysisSchema,
   selected_opportunity_index: z.number().int().min(0),
   selected_opportunity: OpportunitySchema,
@@ -269,6 +281,12 @@ export const ContentGuardOutputSchema = z.object({
       'hallucination_risk',
       'eeat_weak',
       'duplicate_angle',
+      'answer_unit_too_short',
+      'answer_unit_too_long',
+      'low_evidence_ratio',
+      'entity_data_mismatch',
+      'chunk_not_self_contained',
+      'missing_eeat_signals',
     ])
   ),
 
@@ -287,6 +305,10 @@ export const BusinessTypeSchema = z.enum([
   'hospitality',
   'saas',
   'local_services',
+  'education',
+  'healthcare',
+  'food_and_beverage',
+  'professional_services',
 ]);
 
 // Cleaner index coercion:
@@ -343,6 +365,9 @@ export const ContentRequestSchema = z
 
     selected_template_index: IndexSchema.optional(),
     selectedTemplateIndex: IndexSchema.optional(),
+
+    // AEO+GEO: optional entity profile for enriched content
+    entity_profile: z.lazy(() => EntityProfileSchema).optional(),
   })
   .refine((d) => d.selected_template || d.selectedTemplate, {
     message: 'selected_template is required',
@@ -355,3 +380,171 @@ export const ContentRequestSchema = z
   );
 
 export type ContentRequest = z.infer<typeof ContentRequestSchema>;
+
+// ============================================
+// ENTITY PROFILE (Business Data — user-provided, never LLM-invented)
+// ============================================
+
+export const GeoCoordinatesSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+
+export type GeoCoordinates = z.infer<typeof GeoCoordinatesSchema>;
+
+export const BusinessHoursSchema = z.object({
+  day: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
+  open: z.string().regex(/^\d{2}:\d{2}$/),
+  close: z.string().regex(/^\d{2}:\d{2}$/),
+  closed: z.boolean().default(false),
+});
+
+export type BusinessHours = z.infer<typeof BusinessHoursSchema>;
+
+export const ServiceSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().min(10).max(500),
+  price_range: z.string().max(100).optional(),
+  duration: z.string().max(100).optional(),
+  availability: z.string().max(200).optional(),
+  custom_attributes: z.record(z.string(), z.string()).optional(),
+});
+
+export type Service = z.infer<typeof ServiceSchema>;
+
+export const EntityProfileSchema = z.object({
+  // === CORE (universal, required) ===
+  business_name: z.string().min(1).max(200),
+  business_type_detail: z.string().max(200).optional(),
+  address: z.object({
+    street: z.string().min(1),
+    city: z.string().min(1),
+    state: z.string().min(1),
+    postal_code: z.string().min(1),
+    country: z.string().min(1).default('MX'),
+  }),
+  phone: z.string().min(5).max(20),
+  email: z.string().email().optional(),
+  website: z.string().url().optional(),
+
+  // === GEO (location data) ===
+  coordinates: GeoCoordinatesSchema.optional(),
+  service_area: z.array(z.string()).min(1).max(20),
+
+  // === OPERATIONS (universal) ===
+  hours: z.array(BusinessHoursSchema).min(1).max(7),
+  services: z.array(ServiceSchema).min(1).max(20),
+
+  // === E-E-A-T SIGNALS (universal, all optional) ===
+  founding_year: z.number().int().min(1800).max(2030).optional(),
+  certifications: z.array(z.string()).max(20).optional(),
+  awards: z.array(z.string()).max(20).optional(),
+  team_size: z.string().max(50).optional(),
+  team_highlights: z.array(z.string()).max(10).optional(),
+
+  // === SOCIAL PROOF (universal) ===
+  review_count: z.number().int().min(0).optional(),
+  average_rating: z.number().min(1).max(5).optional(),
+  review_platforms: z.array(z.string()).max(10).optional(),
+
+  // === VERTICAL-SPECIFIC EXTENSION ===
+  custom_attributes: z.record(z.string(), z.string()).optional(),
+});
+
+export type EntityProfile = z.infer<typeof EntityProfileSchema>;
+
+// ============================================
+// AEO: CITABLE ANSWER UNITS
+// ============================================
+
+export const CitableAnswerUnitSchema = z.object({
+  question: z.string().min(10).max(200),
+  answer: z.string().min(150).max(350),
+  answer_word_count: z.number().int().min(40).max(80),
+  topic_tag: z.string().min(1).max(50),
+  evidence_type: z.enum(['factual', 'descriptive', 'comparative', 'procedural']),
+  source_field: z.string().optional(),
+});
+
+export type CitableAnswerUnit = z.infer<typeof CitableAnswerUnitSchema>;
+
+// ============================================
+// GEO: EVIDENCE LAYER
+// ============================================
+
+export const EvidenceClaimSchema = z.object({
+  claim_text: z.string().min(10),
+  claim_type: z.enum(['entity_fact', 'general_knowledge', 'statistical', 'testimonial', 'procedural']),
+  source: z.string().min(1),
+  verifiable: z.boolean(),
+  section_index: z.number().int().min(0),
+});
+
+export type EvidenceClaim = z.infer<typeof EvidenceClaimSchema>;
+
+export const EvidenceLayerSchema = z.object({
+  claims: z.array(EvidenceClaimSchema).min(1),
+  total_claims: z.number().int().positive(),
+  verifiable_count: z.number().int().min(0),
+  verifiable_ratio: z.number().min(0).max(1),
+});
+
+export type EvidenceLayer = z.infer<typeof EvidenceLayerSchema>;
+
+// ============================================
+// ENHANCED SECTIONS (with chunking metadata)
+// ============================================
+
+export const EnhancedSectionSchema = z.object({
+  heading_level: z.enum(['h2', 'h3']),
+  heading_text: z.string().min(1),
+  content: z.string().min(50),
+  chunk_id: z.string().regex(/^[a-z0-9-]+$/),
+  is_self_contained: z.boolean(),
+  word_count: z.number().int().positive(),
+  topic_tags: z.array(z.string()).min(1).max(5),
+});
+
+export type EnhancedSection = z.infer<typeof EnhancedSectionSchema>;
+
+// ============================================
+// ENHANCED CONTENT DRAFT (extends ContentDraftSchema)
+// ============================================
+
+export const EntityCardSchema = z.object({
+  business_name: z.string(),
+  address_formatted: z.string(),
+  phone: z.string(),
+  services_highlighted: z.array(z.string()).min(1).max(5),
+  hours_summary: z.string(),
+  rating_summary: z.string().optional(),
+});
+
+export type EntityCard = z.infer<typeof EntityCardSchema>;
+
+export const EnhancedContentDraftSchema = ContentDraftSchema.extend({
+  sections: z.array(EnhancedSectionSchema).min(3),
+  citable_answer_units: z.array(CitableAnswerUnitSchema).min(5).max(15),
+  evidence_layer: EvidenceLayerSchema,
+  entity_card: EntityCardSchema,
+});
+
+export type EnhancedContentDraft = z.infer<typeof EnhancedContentDraftSchema>;
+
+// ============================================
+// JSON-LD OUTPUT (deterministic, no LLM)
+// ============================================
+
+export const JsonLdScriptSchema = z.object({
+  type: z.string(),
+  jsonld: z.record(z.string(), z.unknown()),
+});
+
+export type JsonLdScript = z.infer<typeof JsonLdScriptSchema>;
+
+export const JsonLdOutputSchema = z.object({
+  scripts: z.array(JsonLdScriptSchema),
+  warnings: z.array(z.string()),
+});
+
+export type JsonLdOutput = z.infer<typeof JsonLdOutputSchema>;
