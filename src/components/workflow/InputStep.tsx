@@ -389,7 +389,7 @@ export function InputStep({
             {/* 1. Info Básica */}
             <fieldset className="space-y-3 border border-border rounded-lg p-4">
               <legend className="text-sm font-medium px-2">Info Básica</legend>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Nombre del negocio *</Label>
                   <Input
@@ -409,7 +409,7 @@ export function InputStep({
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Teléfono *</Label>
                   <Input
@@ -453,7 +453,7 @@ export function InputStep({
                   disabled={loading}
                 />
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Ciudad</Label>
                   <Input
@@ -505,18 +505,19 @@ export function InputStep({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0"
+                        className="h-8 w-8 p-0 min-h-[44px] min-w-[44px]"
+                        aria-label={`Eliminar servicio ${idx + 1}`}
                         onClick={() => updatePartial((p) => ({
                           ...p,
                           services: p.services.filter((_, i) => i !== idx),
                         }))}
                         disabled={loading}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <Input
                       placeholder="Nombre *"
                       value={service.name}
@@ -564,7 +565,8 @@ export function InputStep({
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0"
+                        className="h-8 w-8 p-0 min-h-[44px] min-w-[44px]"
+                        aria-label={`Eliminar atributo ${k}`}
                         onClick={() => updatePartial((p) => ({
                           ...p,
                           services: p.services.map((s, i) => {
@@ -575,7 +577,7 @@ export function InputStep({
                         }))}
                         disabled={loading}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   ))}
@@ -623,7 +625,7 @@ export function InputStep({
               <legend className="text-sm font-medium px-2">Horarios *</legend>
               <div className="space-y-2">
                 {partial.hours.map((h, idx) => (
-                  <div key={h.day} className="flex items-center gap-3">
+                  <div key={h.day} className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <label className="flex items-center gap-2 w-28">
                       <input
                         type="checkbox"
@@ -641,7 +643,7 @@ export function InputStep({
                       <>
                         <Input
                           type="time"
-                          className="w-28 h-8"
+                          className="w-full sm:w-28 h-9"
                           value={h.open}
                           onChange={(e) => updatePartial((p) => ({
                             ...p,
@@ -652,7 +654,7 @@ export function InputStep({
                         <span className="text-xs text-muted-foreground">a</span>
                         <Input
                           type="time"
-                          className="w-28 h-8"
+                          className="w-full sm:w-28 h-9"
                           value={h.close}
                           onChange={(e) => updatePartial((p) => ({
                             ...p,
@@ -671,7 +673,7 @@ export function InputStep({
             {/* 5. Confianza (E-E-A-T) */}
             <fieldset className="space-y-3 border border-border rounded-lg p-4">
               <legend className="text-sm font-medium px-2">Confianza (opcional)</legend>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Año de fundación</Label>
                   <Input
@@ -721,7 +723,7 @@ export function InputStep({
             {/* 6. Reviews */}
             <fieldset className="space-y-3 border border-border rounded-lg p-4">
               <legend className="text-sm font-medium px-2">Reviews (opcional)</legend>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Cantidad de reseñas</Label>
                   <Input
@@ -775,7 +777,7 @@ export function InputStep({
                   disabled={loading}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Latitud</Label>
                   <Input
@@ -828,7 +830,8 @@ export function InputStep({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0"
+                    className="h-8 w-8 p-0 min-h-[44px] min-w-[44px]"
+                    aria-label={`Eliminar atributo ${k}`}
                     onClick={() => updatePartial((p) => {
                       const { [k]: _omitted, ...rest } = p.custom_attributes;
                       return { ...p, custom_attributes: rest };

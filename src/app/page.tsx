@@ -58,7 +58,7 @@ export default function Page() {
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="max-w-5xl mx-auto px-6 py-12">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-12">
         <header className="text-center mb-12">
           <h1 className="text-3xl font-semibold tracking-tight text-foreground mb-2">SEO Decision Engine</h1>
           <p className="text-muted-foreground">La IA sugiere. Tú decides.</p>
@@ -88,12 +88,13 @@ export default function Page() {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0">
+              <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => setError(null)}
-                  className="h-8 border-red-200 text-red-700 hover:bg-red-100"
+                  className="min-h-[44px] min-w-[44px] border-red-200 text-red-700 hover:bg-red-100"
+                  aria-label="Cerrar mensaje de error"
                 >
                   <X className="w-4 h-4" />
                 </Button>
@@ -101,7 +102,7 @@ export default function Page() {
                   variant="outline"
                   size="sm"
                   onClick={handleRetry}
-                  className="h-8 border-red-200 text-red-700 hover:bg-red-100"
+                  className="min-h-[44px] border-red-200 text-red-700 hover:bg-red-100"
                 >
                   <RefreshCw className="w-4 h-4 mr-1" />
                   Reintentar
