@@ -11,12 +11,12 @@ export default function Error({
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background px-4">
       <div className="text-center space-y-4 max-w-md">
-        <h2 className="text-2xl font-semibold text-foreground">Something went wrong</h2>
+        <h2 className="text-2xl font-semibold text-foreground">Algo salió mal</h2>
         <p className="text-muted-foreground">
-          An unexpected error occurred. Please try again.
+          Ocurrió un error inesperado. Intenta de nuevo.
         </p>
         <Button onClick={reset} variant="default">
-          Try again
+          Reintentar
         </Button>
       </div>
     </div>

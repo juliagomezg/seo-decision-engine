@@ -8,4 +8,5 @@ export { ValidationCriteriaBox } from './ValidationCriteriaBox';
 export { BackButton } from './BackButton';
 export { ConfirmBackDialog } from './ConfirmBackDialog';
 export { LoadingOverlay } from './LoadingOverlay';
+export { WorkflowClient } from './WorkflowClient';
 export * from './types';
