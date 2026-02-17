@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, Download, Check, AlertTriangle, Loader2, ChevronDown, MapPin, Phone, Clock, Star, Code2, MessageSquareQuote, FileCheck2 } from 'lucide-react';
+import { Copy, Download, Check, AlertTriangle, Loader2, ChevronDown, MapPin, Phone, Clock, Star, Code2, MessageSquareQuote, FileCheck2, Globe, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BusinessContextBar } from './BusinessContextBar';
@@ -285,6 +285,8 @@ export function ResultStep({
   onBack,
   onRegenerate,
   isRegenerating,
+  onPublish,
+  publishedUrl,
 }: ResultStepProps) {
   const [copySuccess, setCopySuccess] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -426,7 +428,7 @@ export function ResultStep({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {/* Opción 1: Usar como está */}
                 <Button
                   variant="outline"
@@ -477,6 +479,38 @@ export function ResultStep({
                     Volver a seleccionar template
                   </span>
                 </Button>
+
+                {/* Opción 4: Publicar como está */}
+                {publishedUrl ? (
+                  <a
+                    href={publishedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="h-auto py-4 flex flex-col items-start text-left border border-blue-200 hover:bg-blue-100 rounded-md px-4"
+                  >
+                    <span className="font-medium flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Landing publicada
+                    </span>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      Ver landing publicada <ExternalLink className="w-3 h-3 inline" />
+                    </span>
+                  </a>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="h-auto py-4 flex-col items-start text-left border-blue-200 hover:bg-blue-100"
+                    onClick={onPublish}
+                  >
+                    <span className="font-medium flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Publicar como está
+                    </span>
+                    <span className="text-xs text-muted-foreground mt-1">
+                      Crear landing page pública
+                    </span>
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -489,8 +523,32 @@ export function ResultStep({
       )}
 
       {guardContentResult && guardContentResult.approved && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800">
-          <strong>✓ Contenido aprobado.</strong> Este contenido ha pasado la validación de calidad y está listo para usar.
+        <div className="space-y-3">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800">
+            <strong>✓ Contenido aprobado.</strong> Este contenido ha pasado la validación de calidad y está listo para usar.
+          </div>
+          {publishedUrl ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 flex items-center justify-between gap-4">
+              <span className="flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                Landing publicada
+              </span>
+              <a
+                href={publishedUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium underline underline-offset-4 hover:text-blue-900"
+              >
+                Ver landing publicada
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          ) : (
+            <Button onClick={onPublish} className="w-full sm:w-auto">
+              <Globe className="w-4 h-4 mr-2" />
+              Publicar como landing
+            </Button>
+          )}
         </div>
       )}
 

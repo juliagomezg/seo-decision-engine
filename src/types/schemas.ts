@@ -548,3 +548,25 @@ export const JsonLdOutputSchema = z.object({
 });
 
 export type JsonLdOutput = z.infer<typeof JsonLdOutputSchema>;
+
+// ============================================
+// PUBLISHED RESULT BUNDLE (persisted output)
+// ============================================
+
+export const PublishedResultBundleSchema = z.object({
+  id: z.string().regex(/^[a-z0-9-]+$/),
+  published_at: z.string().datetime(),
+  keyword: z.string(),
+  location: z.string().optional(),
+  business_type: BusinessTypeSchema.optional(),
+  entity_profile: EntityProfileSchema.optional(),
+  content_draft: ContentDraftSchema,
+  guard_content_result: ContentGuardOutputSchema,
+  jsonld_output: JsonLdOutputSchema.optional(),
+  intent_analysis: IntentAnalysisSchema,
+  selected_opportunity_index: z.number().int().min(0),
+  template_proposal: TemplateProposalSchema,
+  selected_template_index: z.number().int().min(0),
+});
+
+export type PublishedResultBundle = z.infer<typeof PublishedResultBundleSchema>;

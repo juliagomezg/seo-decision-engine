@@ -71,6 +71,8 @@ export interface UseWorkflowReturn {
   handleBackFromGateB: () => void;
   handleBackFromResult: () => void;
   confirmBack: () => void;
+  handlePublish: () => Promise<void>;
+  publishedUrl: string | null;
 }
 
 export function useWorkflow(): UseWorkflowReturn {
@@ -104,6 +106,9 @@ export function useWorkflow(): UseWorkflowReturn {
   const [contentDraft, setContentDraft] = useState<ContentDraft | null>(null);
   const [guardContentResult, setGuardContentResult] = useState<ContentGuardOutput | null>(null);
   const [jsonldOutput, setJsonldOutput] = useState<JsonLdOutput | null>(null);
+
+  // Publish state
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null);
 
   // Success message state
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -448,6 +453,49 @@ export function useWorkflow(): UseWorkflowReturn {
     guardContentResult?.suggested_fix
   ]);
 
+  const handlePublish = useCallback(async () => {
+    if (!contentDraft || !guardContentResult || !intentAnalysis || selectedOpportunityIndex === null || !templateProposal || selectedTemplateIndex === null) {
+      setError('Faltan datos para publicar');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch('/api/publish-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          keyword: keyword.trim(),
+          location: location.trim() || undefined,
+          business_type: businessType || undefined,
+          entity_profile: entityProfile || undefined,
+          content_draft: contentDraft,
+          guard_content_result: guardContentResult,
+          jsonld_output: jsonldOutput || undefined,
+          intent_analysis: intentAnalysis,
+          selected_opportunity_index: selectedOpportunityIndex,
+          template_proposal: templateProposal,
+          selected_template_index: selectedTemplateIndex,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'La publicación falló');
+      }
+
+      const data = await res.json();
+      setPublishedUrl(data.url);
+      setSuccessMessage('Contenido publicado');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error al publicar');
+    } finally {
+      setLoading(false);
+    }
+  }, [contentDraft, guardContentResult, intentAnalysis, selectedOpportunityIndex, templateProposal, selectedTemplateIndex, keyword, location, businessType, entityProfile, jsonldOutput]);
+
   const handleReset = useCallback(() => {
     setStep('input');
     setKeyword('');
@@ -463,6 +511,7 @@ export function useWorkflow(): UseWorkflowReturn {
     setContentDraft(null);
     setGuardContentResult(null);
     setJsonldOutput(null);
+    setPublishedUrl(null);
     setError(null);
   }, []);
 
@@ -584,5 +633,7 @@ export function useWorkflow(): UseWorkflowReturn {
     handleBackFromGateB,
     handleBackFromResult,
     confirmBack,
+    handlePublish,
+    publishedUrl,
   };
 }

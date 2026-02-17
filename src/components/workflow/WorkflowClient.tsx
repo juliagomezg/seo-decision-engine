@@ -54,6 +54,8 @@ export function WorkflowClient() {
     handleBackFromGateB,
     handleBackFromResult,
     confirmBack,
+    handlePublish,
+    publishedUrl,
   } = useWorkflow();
 
   return (
@@ -166,6 +168,8 @@ export function WorkflowClient() {
           onBack={handleBackFromResult}
           onRegenerate={handleRegenerate}
           isRegenerating={isRegenerating}
+          onPublish={handlePublish}
+          publishedUrl={publishedUrl}
         />
       )}
 

@@ -66,6 +66,8 @@ export interface ResultStepProps {
   onBack: () => void;
   onRegenerate: () => void;
   isRegenerating: boolean;
+  onPublish: () => void;
+  publishedUrl: string | null;
 }
 
 export interface BusinessContextBarProps {
