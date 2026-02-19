@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function ResultLayout({
   children,
 }: {
@@ -9,9 +11,9 @@ export default function ResultLayout({
         {children}
       </main>
       <footer className="border-t py-8 text-center text-sm text-gray-500">
-        <a href="/" className="hover:text-gray-700 underline underline-offset-4">
+        <Link href="/" className="hover:text-gray-700 underline underline-offset-4">
           SEO Decision Engine
-        </a>
+        </Link>
       </footer>
     </div>
   );

@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function NotFound() {
   return (
     <div className="text-center py-20">
@@ -5,12 +7,12 @@ export default function NotFound() {
       <p className="text-lg text-gray-600 mb-8">
         Este resultado no existe o fue eliminado.
       </p>
-      <a
+      <Link
         href="/"
         className="inline-flex items-center px-4 py-2 rounded-lg bg-gray-900 text-white hover:bg-gray-800 transition-colors"
       >
         Volver al inicio
-      </a>
+      </Link>
     </div>
   );
 }
