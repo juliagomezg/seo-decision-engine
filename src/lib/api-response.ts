@@ -40,6 +40,7 @@ export type ApiErrorCode =
   | "LLM_OUTPUT_VALIDATION"
   | "UPSTREAM_ERROR"
   | "MISSING_GROQ_API_KEY"
+  | "UNAUTHORIZED"
   | "INTERNAL_ERROR";
 
 export interface ApiSuccessResponse<T> {

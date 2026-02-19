@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit early to protect Groq spend
     const ip = getClientIp(req.headers);
-    if (!checkRateLimit(ip)) {
+    if (!(await checkRateLimit(ip))) {
       return rateLimited(requestId);
     }
 

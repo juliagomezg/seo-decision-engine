@@ -53,7 +53,7 @@ const {
 
   return {
     mockCallLLM: vi.fn(),
-    mockCheckRateLimit: vi.fn(() => true),
+    mockCheckRateLimit: vi.fn(() => Promise.resolve(true)),
     LLMTimeoutError,
     LLMInvalidJSONError,
     LLMOutputValidationError,
@@ -95,7 +95,7 @@ function createRequest(body: unknown): NextRequest {
 describe('POST /api/analyze-intent', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCheckRateLimit.mockReturnValue(true);
+    mockCheckRateLimit.mockResolvedValue(true);
   });
 
   describe('input validation', () => {
@@ -188,7 +188,7 @@ describe('POST /api/analyze-intent', () => {
 
   describe('rate limiting', () => {
     it('returns 429 when rate limited', async () => {
-      mockCheckRateLimit.mockReturnValueOnce(false);
+      mockCheckRateLimit.mockResolvedValueOnce(false);
 
       const req = createRequest({ keyword: 'test' });
       const res = await POST(req);
